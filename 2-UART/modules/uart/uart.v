@@ -139,7 +139,7 @@ always @(posedge clk_i) begin
                 if(txBitNumber >= 7) begin // Stop on last bit
                     txState <= TX_STATE_STOP_BIT;
                     txPinRegister <= 1; // Stop bit is high
-                    txCounter <= 5; // TODO: This seems to be the magic number to get it working. Why 5?
+                    txCounter <= 4; // TODO: This value seems to need to change depending on where UART is in the module tree... magic number has been both 4 and 5 in different setups.
                 end else begin
                     txBitNumber <= txBitNumber + 1;
                     txCounter <= 1;
