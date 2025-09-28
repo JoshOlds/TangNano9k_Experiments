@@ -1,7 +1,7 @@
 module uart
 #(
-    parameter DELAY_FRAMES = 234 // 27,000,000 (27MHz) / 115200 Baud rate
-    //parameter DELAY_FRAMES = 27 // 27,000,000 (27MHz) / 115200 Baud rate
+    //parameter DELAY_FRAMES = 234 // 27,000,000 (27MHz) / 115200 Baud rate
+    parameter DELAY_FRAMES = 27 // 27,000,000 (27MHz) / 115200 Baud rate
 )
 
 (
@@ -48,11 +48,12 @@ always @(posedge clk_i) begin
     case (rxState)
 
         RX_STATE_IDLE: begin
+            rx_byte_ready_o <= 0;
             if(uart_rx_i == 0) begin // Start bit detected
                 rxState <= RX_STATE_START_BIT;
                 rxCounter <= 1;
                 rxBitNumber <= 0;
-                rx_byte_ready_o <= 0;
+                rx_data_o <= 0; // Clear out old data
             end
         end
 
@@ -77,7 +78,6 @@ always @(posedge clk_i) begin
             if(rxBitNumber >= 7) begin
                 rxState <= RX_STATE_STOP_BIT;
                 rx_byte_ready_o <= 1;
-                rxBitNumber <= 0;
             end
             else begin
                 rxState <= RX_STATE_READ_WAIT;
@@ -139,7 +139,7 @@ always @(posedge clk_i) begin
                 if(txBitNumber >= 7) begin // Stop on last bit
                     txState <= TX_STATE_STOP_BIT;
                     txPinRegister <= 1; // Stop bit is high
-                    txCounter <= 4; // TODO: This value seems to need to change depending on where UART is in the module tree... magic number has been both 4 and 5 in different setups.
+                    txCounter <= 1; // TODO: This value seems to need to change depending on where UART is in the module tree... magic number has been both 4 and 5 in different setups.
                 end else begin
                     txBitNumber <= txBitNumber + 1;
                     txCounter <= 1;

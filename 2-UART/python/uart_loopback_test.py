@@ -6,7 +6,8 @@ import sys
 import shutil
 
 def uart_loopback_test(port, baudrate, bytes_per_send, send_interval, total_sends):
-    ser = serial.Serial(port, baudrate, stopbits=1, timeout=1)
+    ser = serial.Serial(port, baudrate, stopbits=2, timeout=1)
+    ser.flush()
     print(f"Opened serial port {port} at {baudrate} baud.")
 
     success = 0

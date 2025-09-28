@@ -1,3 +1,5 @@
+    // Simple test module to write alternating 0x41 ('A') and 0x43 ('C') characters over UART as fast as possible
+    
     module uart_write_test(
     input clk_pin,
     input uart_rx_pin,

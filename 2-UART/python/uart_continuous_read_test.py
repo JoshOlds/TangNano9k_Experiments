@@ -7,6 +7,7 @@ import shutil
 
 def uart_continuous_read_test(port, baudrate, bytes_per_send, send_interval, total_sends):
     ser = serial.Serial(port, baudrate, timeout=1)
+    ser.flush()
     print(f"Opened serial port {port} at {baudrate} baud.")
 
     def _draw_progress(bytes_sent, total_bytes):

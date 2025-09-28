@@ -23,4 +23,11 @@ module top(
     //     .led_pins(led_pins)
     // );
 
+    // led_uart led_uart1(
+    //     .clk_pin(clk_pin),
+    //     .uart_rx_pin(uart_rx_pin),
+    //     .uart_tx_pin(uart_tx_pin),
+    //     .led_pins(led_pins)
+    // );
+
 endmodule
