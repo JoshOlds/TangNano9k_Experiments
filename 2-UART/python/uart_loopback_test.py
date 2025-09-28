@@ -1,3 +1,7 @@
+# UART Loopback Test Script
+# This script sends random byte sequences to a UART interface and verifies
+# that the received data matches the sent data, indicating a successful loopback.
+
 import serial
 import time
 import random

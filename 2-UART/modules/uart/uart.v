@@ -1,7 +1,10 @@
+// UART module for sending and receiving serial data
+// Configurable for different baud rates via the DELAY_FRAMES parameter
+
 module uart
 #(
     //parameter DELAY_FRAMES = 234 // 27,000,000 (27MHz) / 115200 Baud rate
-    parameter DELAY_FRAMES = 27 // 27,000,000 (27MHz) / 115200 Baud rate
+    parameter DELAY_FRAMES = 27 // 27,000,000 (27MHz) / 1000000 Baud rate
 )
 
 (
@@ -139,7 +142,7 @@ always @(posedge clk_i) begin
                 if(txBitNumber >= 7) begin // Stop on last bit
                     txState <= TX_STATE_STOP_BIT;
                     txPinRegister <= 1; // Stop bit is high
-                    txCounter <= 1; // TODO: This value seems to need to change depending on where UART is in the module tree... magic number has been both 4 and 5 in different setups.
+                    txCounter <= 1; 
                 end else begin
                     txBitNumber <= txBitNumber + 1;
                     txCounter <= 1;

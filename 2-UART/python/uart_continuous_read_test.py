@@ -1,3 +1,5 @@
+# Simple test script to send random bytes over UART in write blocks
+
 import serial
 import time
 import random
@@ -45,7 +47,7 @@ def uart_continuous_read_test(port, baudrate, bytes_per_send, send_interval, tot
         print()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="UART loopback test script")
+    parser = argparse.ArgumentParser(description="UART continuous read script")
     parser.add_argument("--port", required=True, help="Serial port (e.g. COM3 or /dev/ttyUSB0)")
     parser.add_argument("--baudrate", type=int, default=115200, help="Baud rate (default: 115200)")
     parser.add_argument("--bytes", type=int, default=8, help="Bytes per send (default: 8)")

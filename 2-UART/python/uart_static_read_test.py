@@ -1,3 +1,6 @@
+# Simple UART Static Read Test Script
+# This script continuously sends a fixed byte (0xAA) over UART.
+
 import serial
 import threading
 import time

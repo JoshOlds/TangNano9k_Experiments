@@ -1,3 +1,7 @@
+// https://learn.lushaylabs.com/tang-nano-9k-debugging/
+
+// Module to loopback received UART data and display status on LEDs
+
 module loopback_uart(
     input clk_pin,
     input uart_rx_pin,
@@ -25,7 +29,7 @@ module loopback_uart(
         .rx_state_debug(debug_state)
     );
 
-    // //Loopback UART for testing
+    // Loopback UART for testing
     reg tx_loopback_sent_already = 0; // To avoid multiple triggers for the same byte in loopback mode
     always @(posedge clk_pin) begin
         uart_tx_trigger <= 0; // Default to no trigger

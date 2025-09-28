@@ -1,3 +1,7 @@
+# Continuous UART Write Verification Script
+# This script continuously reads from a UART interface and verifies
+# that the incoming data matches a predefined repeating pattern.
+
 import serial
 import sys
 import time

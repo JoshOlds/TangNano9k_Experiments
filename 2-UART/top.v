@@ -1,5 +1,8 @@
 // https://learn.lushaylabs.com/tang-nano-9k-debugging/
 
+// Top module to instantiate different UART test modules
+// Uncomment the desired module to test
+
 `default_nettype none
 
 module top(

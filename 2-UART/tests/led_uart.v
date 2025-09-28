@@ -1,3 +1,6 @@
+// Simple top-level module to connect UART to LEDs
+// Displays the last received byte on the LEDs (inverted for active-low LEDs)
+
 module led_uart(
     input clk_pin,
     input uart_rx_pin,
