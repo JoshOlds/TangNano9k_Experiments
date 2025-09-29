@@ -1,0 +1,10 @@
+{
+    "name":"build/output",
+    "top": "uart_top",
+    "includedFiles": ["2-UART/uart_top.v", "2-UART/modules/uart/uart.v", "2-UART/tests/loopback_uart.v"],
+    "constraintsFile": "2-UART/uart_top.cst",
+    "testBenches": ["2-UART/testbenches/uart_tb.v"],
+    "board":"tangnano9k"
+}
+ 
+

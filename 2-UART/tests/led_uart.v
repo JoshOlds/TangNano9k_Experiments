@@ -2,10 +2,10 @@
 // Displays the last received byte on the LEDs (inverted for active-low LEDs)
 
 module led_uart(
-    input clk_pin,
-    input uart_rx_pin,
-    output uart_tx_pin,
-    output [5:0] led_pins
+    input clk_pin_i,
+    input uart_rx_pin_i,
+    output uart_tx_pin_o,
+    output [5:0] led_pins_o
 );
 
     // UART signals
@@ -19,11 +19,11 @@ module led_uart(
     reg [7:0] latched_uart_rx_data = 0;
 
     uart uart1(
-        .clk_i(clk_pin),
-        .uart_rx_i(uart_rx_pin),
+        .clk_i(clk_pin_i),
+        .uart_rx_i(uart_rx_pin_i),
         .rx_byte_ready_o(uart_rx_byte_ready),
         .rx_data_o(uart_rx_data),
-        .uart_tx_o(uart_tx_pin),
+        .uart_tx_o(uart_tx_pin_o),
         .tx_data_i(uart_tx_data),
         .tx_trigger_i(uart_tx_trigger),
         .tx_complete_o(uart_tx_ready),
@@ -31,15 +31,15 @@ module led_uart(
     );
 
     // Latch the last received byte for display on LEDs
-    always @(posedge clk_pin) begin
+    always @(posedge clk_pin_i) begin
         if (uart_rx_byte_ready) begin
             latched_uart_rx_data <= uart_rx_data;
         end
     end
 
     //Drive LEDs from UART
-    always @(posedge clk_pin) begin
-        led_pins[5:0] <= ~latched_uart_rx_data[5:0];
+    always @(posedge clk_pin_i) begin
+        led_pins_o[5:0] <= ~latched_uart_rx_data[5:0];
     end
 
 endmodule

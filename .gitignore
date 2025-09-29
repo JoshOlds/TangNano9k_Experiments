@@ -1,0 +1,6 @@
+*.o
+*.vcd
+*.fs
+*pnr.json
+build/
+*export.json

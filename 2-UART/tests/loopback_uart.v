@@ -3,10 +3,10 @@
 // Module to loopback received UART data and display status on LEDs
 
 module loopback_uart(
-    input clk_pin,
-    input uart_rx_pin,
-    output uart_tx_pin,
-    output [5:0] led_pins
+    input clk_pin_i,
+    input uart_rx_pin_i,
+    output uart_tx_pin_o,
+    output [5:0] led_pins_o
 );
 
     // UART signals
@@ -17,12 +17,14 @@ module loopback_uart(
     reg uart_tx_trigger;
     wire [3:0] debug_state;
 
+    assign led_pins_o[5] = uart_rx_pin_i; // Show RX line state on LED 5
+
     uart uart1(
-        .clk_i(clk_pin),
-        .uart_rx_i(uart_rx_pin),
+        .clk_i(clk_pin_i),
+        .uart_rx_i(uart_rx_pin_i),
         .rx_byte_ready_o(uart_rx_byte_ready),
         .rx_data_o(uart_rx_data),
-        .uart_tx_o(uart_tx_pin),
+        .uart_tx_o(uart_tx_pin_o),
         .tx_data_i(uart_tx_data),
         .tx_trigger_i(uart_tx_trigger),
         .tx_complete_o(uart_tx_ready),
@@ -31,7 +33,7 @@ module loopback_uart(
 
     // Loopback UART for testing
     reg tx_loopback_sent_already = 0; // To avoid multiple triggers for the same byte in loopback mode
-    always @(posedge clk_pin) begin
+    always @(posedge clk_pin_i) begin
         uart_tx_trigger <= 0; // Default to no trigger
         if(!tx_loopback_sent_already && uart_rx_byte_ready && uart_tx_ready) begin
             uart_tx_data <= uart_rx_data; // Load the data to be sent with the last received byte
@@ -41,13 +43,6 @@ module loopback_uart(
         if(!uart_rx_byte_ready) begin
             tx_loopback_sent_already <= 0;
         end
-    end
-
-    //Drive LEDs from UART
-    always @(posedge clk_pin) begin
-        led_pins[3:0] <= ~debug_state[3:0];
-        led_pins[4] <= ~uart_rx_byte_ready;
-        led_pins[5] <= uart_rx_pin;
     end
 
 endmodule

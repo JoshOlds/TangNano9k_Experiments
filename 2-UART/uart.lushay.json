@@ -1,0 +1,5 @@
+{
+    "name": "build/uart",
+    "top": "uart_top",
+    "testBenches": "all"
+}

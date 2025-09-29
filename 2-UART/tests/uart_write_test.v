@@ -1,10 +1,10 @@
     // Simple test module to write alternating 0x41 ('A') and 0x43 ('C') characters over UART as fast as possible
     
     module uart_write_test(
-    input clk_pin,
-    input uart_rx_pin,
-    output uart_tx_pin,
-    output [5:0] led_pins
+        input clk_pin_i,
+        input uart_rx_pin_i,
+        output uart_tx_pin_o,
+        output [5:0] led_pins_o
 );
 
     // UART signals
@@ -16,11 +16,11 @@
     wire [3:0] debug_state;
 
     uart uart1(
-        .clk_i(clk_pin),
-        .uart_rx_i(uart_rx_pin),
+        .clk_i(clk_pin_i),
+        .uart_rx_i(uart_rx_pin_i),
         .rx_byte_ready_o(uart_rx_byte_ready),
         .rx_data_o(uart_rx_data),
-        .uart_tx_o(uart_tx_pin),
+        .uart_tx_o(uart_tx_pin_o),
         .tx_data_i(uart_tx_data),
         .tx_trigger_i(uart_tx_trigger),
         .tx_complete_o(uart_tx_ready),
