@@ -4,3 +4,4 @@
 *pnr.json
 build/
 *export.json
+*.code-workspace
