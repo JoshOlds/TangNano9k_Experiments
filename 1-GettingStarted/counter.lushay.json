@@ -1,0 +1,5 @@
+{
+    "name": "build/counter",
+    "top": "counter_top",
+    "testBenches": "all"
+}

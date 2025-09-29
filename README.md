@@ -1,10 +1,10 @@
 # TangNano9k FPGA Experiments
 
-This repository contains a collection of Verilog modules and experiments developed for the TangNano9k FPGA board, following the Lushay Labs tutorial series. Each module demonstrates different FPGA concepts and capabilities using open-source tools.
+This repository contains a collection of Verilog modules and experiments developed for the TangNano9k FPGA board, roughly following the [Lushay Labs tutorial series](https://learn.lushaylabs.com/tang-nano-series/). Each module demonstrates different FPGA concepts and capabilities using open-source tools.
 
 ## Project Structure
 
-The repository is organized into separate folders, each containing a standalone FPGA module or experiment. Each folder represents a different concept or functionality that can be built and deployed to the TangNano9k board.
+The repository is organized into separate folders, each containing a standalone FPGA module or buildable experiment. Each folder represents a different concept or functionality that can be built and deployed to the TangNano9k board.
 
 ## Prerequisites
 
@@ -17,13 +17,9 @@ To build and run these experiments, you'll need:
 
 ## Building Projects
 
-Each project folder contains Verilog source files that can be built using the OSS-CAD-Suite tools. The general build process involves:
+See the [Lushay Labs guide](https://learn.lushaylabs.com/getting-setup-with-the-tang-nano-9k/#the-open-source-toolchain) for instructions on how to use the VSCode plugin to build and flash these projects!
 
-1. Synthesis using Yosys
-2. Place and Route using nextpnr-gowin
-3. Bitstream generation using gowin_pack
-
-See the Lushay Labs guide for instructions on how to use the VSCode plugin to build and flash these projects!
+Once setup, you should 'Open Folder' in VSCode to open just the folder for the experiment you would like to build (ie. `./2-UART/`). If you try to build from the root directory, you will have module conflicts.
 
 ## Project Contents
 
