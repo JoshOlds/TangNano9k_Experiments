@@ -1,0 +1,5 @@
+{
+    "name": "build/oled",
+    "top": "oled_top",
+    "testBenches": "all"
+}

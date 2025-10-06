@@ -1,0 +1,47 @@
+IO_LOC  "oled_d0_pin" 81;
+IO_PORT "oled_d0_pin" DRIVE=8 IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
+
+IO_LOC  "oled_d1_pin" 82;
+IO_PORT "oled_d1_pin" DRIVE=8 IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
+
+IO_LOC  "oled_res_pin" 83;
+IO_PORT "oled_res_pin" DRIVE=8 IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
+
+IO_LOC  "oled_dc_pin" 84;
+IO_PORT "oled_dc_pin" DRIVE=8 IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
+
+IO_LOC  "oled_cs_pin" 85;
+IO_PORT "oled_cs_pin" DRIVE=8 IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
+
+IO_LOC  "clk_pin" 52;
+IO_PORT "clk_pin" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+IO_LOC  "led_pin[0]" 10;
+IO_PORT "led_pin[0]" DRIVE=8 IO_TYPE=LVCMOS18;
+
+IO_LOC  "led_pin[1]" 11;
+IO_PORT "led_pin[1]" DRIVE=8 IO_TYPE=LVCMOS18;
+
+IO_LOC  "led_pin[2]" 13;
+IO_PORT "led_pin[2]" DRIVE=8 IO_TYPE=LVCMOS18;
+
+IO_LOC  "led_pin[3]" 14;
+IO_PORT "led_pin[3]" DRIVE=8 IO_TYPE=LVCMOS18;
+
+IO_LOC  "led_pin[4]" 15;
+IO_PORT "led_pin[4]" DRIVE=8 IO_TYPE=LVCMOS18;
+
+IO_LOC  "led_pin[5]" 16;
+IO_PORT "led_pin[5]" DRIVE=8 IO_TYPE=LVCMOS18;
+
+IO_LOC  "btn1_pin" 3;
+IO_PORT "btn1_pin" IO_TYPE=LVCMOS18;
+
+IO_LOC  "btn2_pin" 4;
+IO_PORT "btn2_pin" IO_TYPE=LVCMOS18;
+
+IO_LOC  "uartTx_pin" 17;
+IO_PORT "uartTx_pin" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+IO_LOC  "uartRx_pin" 18;
+IO_PORT "uartRx_pin" IO_TYPE=LVCMOS33 PULL_MODE=UP;
