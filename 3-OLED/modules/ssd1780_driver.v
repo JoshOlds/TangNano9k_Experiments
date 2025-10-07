@@ -1,7 +1,7 @@
 `default_nettype none
 
 module ssd1780_driver(
-    input clk, // Module input clock. SPI data will clock out at half this frequency
+    input clk, // Module input clock. Assumes 27Mhz. SPI data will clock out at half this frequency
     input reset, // Active high - resets state machine and reinitializes the module
     output reg sclk, // OLED d0 pin (acts as SCLK for SPI)
     output reg sdin, // OLED d1 pin (acts as SDIN for SPI) - data is shifted in on rising edge of SCLK, and is MSB first
@@ -22,13 +22,18 @@ end
 parameter DISPLAY_WIDTH = 128;
 parameter DISPLAY_HEIGHT = 64;
 parameter STARTUP_DELAY = 10000000; // Delay to use after power has been applied before resetting the display (~1/3 second at 27Mhz) 
+parameter FRAME_RATE = 100; // Target frame rate for refreshing the display
+parameter FRAME_RATE_DELAY = 27000000 / FRAME_RATE; // Delay time between frames (27mhz clock)
 
 // OLED Command Bytes
 localparam CONTRAST = 8'h81; // Two byte command, second byte is contrast level 0-255
-localparam ENTIRE_DISPLAY_ON = 8'hA4; // Sets the entire display to ON regardless of RAM contents
-localparam ENTIRE_DISPLAY_RAM = 8'hA5; // Sets the entire display to RAM contents
+localparam ENTIRE_DISPLAY_ON = 8'hA5; // Sets the entire display to ON regardless of RAM contents
+localparam ENTIRE_DISPLAY_RAM = 8'hA4; // Sets the entire display to RAM contents
 localparam DISPLAY_MODE_ACTIVE_HIGH = 8'hA6; // Normal display mode
 localparam DISPLAY_MODE_ACTIVE_LOW = 8'hA7; // Inverse display mode
+localparam CHARGE_PUMP_CONFIG = 8'h8D; // Two byte command, second byte is 0x10 to disable charge pump, 0x14 to enable
+    localparam ENABLE_CHARGE_PUMP = 8'h14; // Must enable charge pump before DISPLAY_ON
+    localparam DISABLE_CHARGE_PUMP = 8'h10;
 localparam DISPLAY_OFF = 8'hAE; // Display OFF (sleep mode)
 localparam DISPLAY_ON = 8'hAF; // Display ON (normal mode)
 localparam SET_MEMORY_ADDR_MODE = 8'h20; // Set memory addressing mode - two byte command followed by one of the next bytes
@@ -36,30 +41,67 @@ localparam SET_MEMORY_ADDR_MODE = 8'h20; // Set memory addressing mode - two byt
     localparam VERTICAL_ADDR_MODE = 8'h01; // Page pointer will increment every byte, column pointer will increment when reaching bottom of display
     localparam PAGE_ADDR_MODE = 8'h02; // Default after reset - Column pointer increments every byte, page pointer does not increment (stays on page 0 after reaching end of display)
 
-// Framebuffer register
-reg [DISPLAY_WIDTH-1:0] framebuffer [0:DISPLAY_HEIGHT-1];
-
-// Operation State Machine registers
-reg [27:0] startup_delay_counter = 0; // 28 bits to count to 10,000,000 for startup delay
-reg [4:0] operation_state = 0; // Current state of the operation state machine
-reg [4:0] initialization_command_index = 0; // Index of the next initialization command to send
-reg [7:0] write_byte = 0; // Byte to send to OLED (either command or data)
-reg [3:0] write_byte_bit_counter = 0; // Counts bits of the write_byte that have been sent
-reg [5:0] write_clock_counter = 0; // Counter used to pulse SCLK
-reg write_complete = 0; // Flag to signal if writing is complete
-reg [4:0] return_state = 0; // State to return to after writing a byte
-
-assign led_pin_o[3:0] = ~operation_state; // For debugging - show current state on LEDs
-assign led_pin_o[4] = ~sclk; // For debugging - show when a write is complete
-
 // Operation State Machine states
 localparam STARTUP_PRE_RESET = 0;
 localparam STARTUP_RESETTING = 1;
 localparam STARTUP_POST_RESET = 2;
 localparam INITIALIZING = 3;
-localparam WRITE = 4;
-localparam WRITE_DATA = 5;  
-localparam IDLE = 6;
+localparam CLEAR_SCREEN = 4;
+localparam DRAW_FRAMEBUFFER = 5;
+localparam WRITE = 6; 
+localparam IDLE = 7;
+
+// Framebuffer register
+//reg [DISPLAY_WIDTH-1:0] framebuffer [0:DISPLAY_HEIGHT-1];
+reg [127:0] framebuffer [0:63]; // 128 bits wide (one row), 64 rows
+// integer i;
+// initial begin
+//     for(i=0; i<DISPLAY_HEIGHT; i=i+1) begin
+//         framebuffer[i] = 128'b11111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000; // Initialize all bits to 0
+//     end
+// end
+//initial $readmemh("examples/image.hex", framebuffer);
+
+// Operation State Machine registers
+reg [4:0] operation_state = 0; // Current state of the operation state machine
+// Startup state registers
+reg [27:0] startup_delay_counter = 0; // 28 bits to count to 10,000,000 for startup delay
+// Initialization state registers
+reg [4:0] initialization_command_index = 0; // Index of the next initialization command to send
+// Clear screen state registers
+reg [11:0] clear_counter = 0; // Counter used to clear the screen
+// Write state registers
+reg [7:0] write_byte = 0; // Byte to send to OLED (either command or data)
+reg [3:0] write_byte_bit_counter = 0; // Counts bits of the write_byte that have been sent
+reg [5:0] write_clock_counter = 0; // Counter used to pulse SCLK
+reg write_complete = 0; // Flag to signal if writing is complete
+reg [4:0] return_state = 0; // State to return to after writing a byte
+// Draw Framebuffer state registers
+reg [31:0] frame_rate_counter = 0; // Counter to delay between drawing frames
+reg [7:0] draw_column = 0; // Current column being drawn
+reg [7:0] draw_page = 0; // Current page being drawn (8 pages for 64 pixel height)
+reg [7:0] draw_row = 0; // Current row being drawn
+reg frame_complete = 0; // Flag to designate if a full frame has completed writing
+
+
+
+// Debug Registers and Assignments
+
+//assign led_pin_o[4] = ~sclk; // For debugging - show when a write is complete
+reg [23:0] debug_write_byte = 0;
+
+// Debug - every second increment the data in the framebuffer
+reg [31:0] debug_framebuffer_counter = 0;
+always @(posedge clk) begin
+    led_pin_o[5:0] = ~draw_page; // For debugging - show current state on LEDs
+    debug_framebuffer_counter <= debug_framebuffer_counter + 1;
+    if(debug_framebuffer_counter >= 27000000 / 1000) begin // Every second
+        framebuffer[0] <= framebuffer[0] + 1; // Increment first row of framebuffer
+        debug_framebuffer_counter <= 0;
+    end
+end
+
+
 
 
 // Operation state machine
@@ -121,23 +163,84 @@ always @(posedge clk) begin
                 2: begin write_byte <= HORIZONTAL_ADDR_MODE; end
                 3: begin write_byte <= CONTRAST; end
                 4: begin write_byte <= 8'h7F; end // Contrast level
-                5: begin write_byte <= DISPLAY_MODE_ACTIVE_LOW; end
+                5: begin write_byte <= DISPLAY_MODE_ACTIVE_HIGH; end
                 6: begin write_byte <= ENTIRE_DISPLAY_RAM; end
-                7: begin write_byte <= DISPLAY_ON; end
-                8: begin write_byte <= ENTIRE_DISPLAY_ON; end
+                7: begin write_byte <= CHARGE_PUMP_CONFIG; end
+                8: begin write_byte <= ENABLE_CHARGE_PUMP; end
+                9: begin write_byte <= DISPLAY_ON; end
                 default: begin write_byte <= 8'h00; end // No operation
             endcase
             // Go to WRITE state to send the command
-            if(initialization_command_index <= 8) begin
+            if(initialization_command_index <= 9) begin
                 cmd <= 0; // Command mode
                 return_state <= INITIALIZING; // After writing command, return to INITIALIZING state
                 operation_state <= WRITE; // Go to WRITE state to send the command
                 initialization_command_index <= initialization_command_index + 1; // Move to next command
             end
             else begin
-                operation_state <= IDLE;
+                operation_state <= CLEAR_SCREEN; // All initialization commands sent, move to CLEAR_SCREEN state
+                clear_counter <= 0;
             end
         end
+
+        // CLEAR_SCREEN: Clear the display by writing zeros to the entire framebuffer
+        CLEAR_SCREEN: begin
+            if(clear_counter < DISPLAY_WIDTH * DISPLAY_HEIGHT / 8) begin
+                write_byte <= 8'h00; // Byte of zeros to clear the screen
+                cmd <= 1; // Data mode
+                return_state <= CLEAR_SCREEN; // After writing byte, return to CLEAR_SCREEN state
+                operation_state <= WRITE; // Go to WRITE state to send the byte
+                clear_counter <= clear_counter + 1; // Increment clear counter
+            end
+            else begin
+                clear_counter <= 0;
+                operation_state <= DRAW_FRAMEBUFFER;
+            end
+        end
+
+        // DRAW_FRAMEBUFFER: Write the contents of the framebuffer to the display
+        DRAW_FRAMEBUFFER: begin
+            if (draw_column >= 127) begin // Rollover at 127 columns
+                if(draw_page >= 7) begin // If we are at the final (bottom) page, delay to achieve frame_rate, then loop back to top-left
+                    frame_complete <= 1;
+                    frame_rate_counter <= frame_rate_counter + 1;
+                    if(frame_rate_counter >= FRAME_RATE_DELAY) begin // Wait for frame rate time
+                        frame_complete <= 0;
+                        frame_rate_counter <= 0;
+                        draw_column <= 0;
+                        draw_page <= 0;
+                    end
+                end
+                else begin // Otherwise increment the page
+                    draw_column <= 0;
+                    draw_page <= draw_page + 1;
+                end
+            end
+            else begin
+                draw_column <= draw_column + 1;
+            end
+
+            if(!frame_complete) begin
+                // Wire up the framebuffer to the write byte
+                draw_row <= draw_page * 8;
+                write_byte <= {
+                    framebuffer[(draw_page * 8) + 0][draw_column],
+                    framebuffer[(draw_page * 8) + 1][draw_column],
+                    framebuffer[(draw_page * 8) + 2][draw_column],
+                    framebuffer[(draw_page * 8) + 3][draw_column],
+                    framebuffer[(draw_page * 8) + 4][draw_column],
+                    framebuffer[(draw_page * 8) + 5][draw_column],
+                    framebuffer[(draw_page * 8) + 6][draw_column],
+                    framebuffer[(draw_page * 8) + 7][draw_column]
+                };
+
+                // Write the data
+                cmd <= 1; // Data mode
+                return_state <= DRAW_FRAMEBUFFER;
+                operation_state <= WRITE;
+            end
+        end
+
 
         // WRITE: Send a byte to the OLED - assumes cmd/data mode has been set appropriately before entering this state
         WRITE: begin
@@ -168,15 +271,13 @@ always @(posedge clk) begin
             end
         end
 
-        //IDLE: In IDLE state, flash the screen on and off by toggling the display mode every second
+        // IDLE: Wait here until further instructions (for simulation, we will write a byte of data every second)
         IDLE: begin
-            // For simulation purposes, we will toggle every 27,000,000 clock cycles (1s at 27MHz)
             startup_delay_counter <= startup_delay_counter + 1; 
-            if(startup_delay_counter >= STARTUP_DELAY) begin
+            if(startup_delay_counter >= 439) begin
                 startup_delay_counter <= 0;
-
-                // write a byte of data (0xFF) to the display to turn a page of pixels on
-                write_byte <= 8'hFF;
+                write_byte <= debug_write_byte/30; 
+                debug_write_byte <= debug_write_byte + 1; // Increment the byte to write next time
                 cmd <= 1; // Data mode
                 return_state <= IDLE;
                 operation_state <= WRITE;
@@ -184,16 +285,6 @@ always @(posedge clk) begin
         end
 
     endcase
-end
-
-
-
-integer i;
-always @(posedge clk) begin
-    // Set all bits in framebuffer to 1
-    for(i=0; i<DISPLAY_HEIGHT; i=i+1) begin
-        framebuffer[i] = {DISPLAY_WIDTH{1'b1}};
-    end
 end
 
 endmodule

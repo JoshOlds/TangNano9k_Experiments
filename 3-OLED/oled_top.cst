@@ -1,16 +1,16 @@
-IO_LOC  "oled_d0_pin" 29;
+IO_LOC  "oled_d0_pin" 25;
 IO_PORT "oled_d0_pin" DRIVE=8 IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
 
-IO_LOC  "oled_d1_pin" 28;
+IO_LOC  "oled_d1_pin" 26;
 IO_PORT "oled_d1_pin" DRIVE=8 IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
 
 IO_LOC  "oled_res_pin" 27;
 IO_PORT "oled_res_pin" DRIVE=8 IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
 
-IO_LOC  "oled_dc_pin" 26;
+IO_LOC  "oled_dc_pin" 28;
 IO_PORT "oled_dc_pin" DRIVE=8 IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
 
-IO_LOC  "oled_cs_pin" 25;
+IO_LOC  "oled_cs_pin" 29;
 IO_PORT "oled_cs_pin" DRIVE=8 IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
 
 IO_LOC  "clk_pin" 52;

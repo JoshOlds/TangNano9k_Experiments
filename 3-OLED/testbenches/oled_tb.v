@@ -11,6 +11,7 @@ module test;
 
     // DUT I/Os
     wire sclk;
+    wire reset;
     wire sdin;
     wire res;
     wire cmd;
@@ -21,6 +22,7 @@ module test;
         .STARTUP_DELAY(10) // keep small for quick simulation
     ) dut (
         .clk(clk),
+        .reset(1'b0), // No reset for testbench
         .sclk(sclk),
         .sdin(sdin),
         .res(res),
@@ -29,7 +31,7 @@ module test;
     );
 
 initial begin
-    #2000 $finish;
+    #400000 $finish;
 end
 
 initial begin
