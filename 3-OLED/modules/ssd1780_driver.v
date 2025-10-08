@@ -54,12 +54,25 @@ localparam IDLE = 7;
 // Framebuffer register
 //reg [DISPLAY_WIDTH-1:0] framebuffer [0:DISPLAY_HEIGHT-1];
 reg [127:0] framebuffer [0:63]; // 128 bits wide (one row), 64 rows
-// integer i;
-// initial begin
-//     for(i=0; i<DISPLAY_HEIGHT; i=i+1) begin
-//         framebuffer[i] = 128'b11111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000; // Initialize all bits to 0
-//     end
-// end
+// Initialize framebuffer to zeros
+integer i;
+initial begin
+    for (i = 0; i < 64; i = i + 1) begin
+        framebuffer[i] = 128'h0;
+    end
+    framebuffer[0] = 128'h000000000000000000000000000000FF;
+    framebuffer[1] = 128'h0000000000000000000000000000FF00;
+    framebuffer[2] = 128'h00000000000000000000000000FF0000;
+    framebuffer[3] = 128'h000000000000000000000000FF000000;
+    framebuffer[4] = 128'h0000000000000000000000FF00000000;
+    framebuffer[5] = 128'h00000000000000000000FF0000000000;
+    framebuffer[6] = 128'h000000000000000000FF000000000000;
+    framebuffer[7] = 128'h0000000000000000FF00000000000000;
+
+    framebuffer[61] = 128'h0000FF00000000000000000000000000;
+    framebuffer[62] = 128'h00FF0000000000000000000000000000;
+    framebuffer[63] = 128'hFF000000000000000000000000000000;
+end
 //initial $readmemh("examples/image.hex", framebuffer);
 
 // Operation State Machine registers
@@ -91,15 +104,15 @@ reg frame_complete = 0; // Flag to designate if a full frame has completed writi
 reg [23:0] debug_write_byte = 0;
 
 // Debug - every second increment the data in the framebuffer
-reg [31:0] debug_framebuffer_counter = 0;
-always @(posedge clk) begin
-    led_pin_o[5:0] = ~draw_page; // For debugging - show current state on LEDs
-    debug_framebuffer_counter <= debug_framebuffer_counter + 1;
-    if(debug_framebuffer_counter >= 27000000 / 1000) begin // Every second
-        framebuffer[0] <= framebuffer[0] + 1; // Increment first row of framebuffer
-        debug_framebuffer_counter <= 0;
-    end
-end
+// reg [31:0] debug_framebuffer_counter = 0;
+// always @(posedge clk) begin
+//     led_pin_o[5:0] = ~draw_page; // For debugging - show current state on LEDs
+//     debug_framebuffer_counter <= debug_framebuffer_counter + 1;
+//     if(debug_framebuffer_counter >= 27000000 / 1000) begin // Every second
+//         framebuffer[0] <= framebuffer[0] + 1; // Increment first row of framebuffer
+//         debug_framebuffer_counter <= 0;
+//     end
+// end
 
 
 
