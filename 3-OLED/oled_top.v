@@ -21,7 +21,7 @@ always @(posedge clk_pin) begin
     oled_clk <= clock_divider[15]; // 411hz
 end
 
-ssd1780_driver oled_driver(
+ssd1309_driver oled_driver(
     .clk(clk_pin),
     .reset(button1_active_high),
     .sclk(oled_d0_pin),

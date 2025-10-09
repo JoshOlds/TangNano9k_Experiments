@@ -18,7 +18,7 @@ module test;
     wire cs;
 
     // Instantiate DUT with reduced startup delay for simulation speed
-    ssd1780_driver #(
+    ssd1309_driver #(
         .STARTUP_DELAY(10) // keep small for quick simulation
     ) dut (
         .clk(clk),

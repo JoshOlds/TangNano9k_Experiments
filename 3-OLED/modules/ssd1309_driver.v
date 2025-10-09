@@ -1,6 +1,6 @@
 `default_nettype none
 
-module ssd1780_driver(
+module ssd1309_driver(
     input clk, // Module input clock. Assumes 27Mhz. SPI data will clock out at half this frequency
     input reset, // Active high - resets state machine and reinitializes the module
     output reg sclk, // OLED d0 pin (acts as SCLK for SPI)
@@ -57,23 +57,76 @@ reg [127:0] framebuffer [0:63]; // 128 bits wide (one row), 64 rows
 // Initialize framebuffer to zeros
 integer i;
 initial begin
-    for (i = 0; i < 64; i = i + 1) begin
-        framebuffer[i] = 128'h0;
-    end
-    framebuffer[0] = 128'h000000000000000000000000000000FF;
-    framebuffer[1] = 128'h0000000000000000000000000000FF00;
-    framebuffer[2] = 128'h00000000000000000000000000FF0000;
-    framebuffer[3] = 128'h000000000000000000000000FF000000;
-    framebuffer[4] = 128'h0000000000000000000000FF00000000;
-    framebuffer[5] = 128'h00000000000000000000FF0000000000;
-    framebuffer[6] = 128'h000000000000000000FF000000000000;
-    framebuffer[7] = 128'h0000000000000000FF00000000000000;
-
-    framebuffer[61] = 128'h0000FF00000000000000000000000000;
-    framebuffer[62] = 128'h00FF0000000000000000000000000000;
-    framebuffer[63] = 128'hFF000000000000000000000000000000;
+    // for (i = 0; i < 64; i = i + 1) begin
+    //     framebuffer[i] = 128'h0;
+    // end
+    $readmemb("examples/horse_oled_128x64.bin", framebuffer);
+    // framebuffer[0] = 128'h000000000000000000000000000000FF;
+    // framebuffer[1] = 128'h0000000000000000000000000000FF00;
+    // framebuffer[2] = 128'h00000000000000000000000000FF0000;
+    // framebuffer[3] = 128'h000000000000000000000000FF000000;
+    // framebuffer[4] = 128'h0000000000000000000000FF00000000;
+    // framebuffer[5] = 128'h00000000000000000000FF0000000000;
+    // framebuffer[6] = 128'h000000000000000000FF000000000000;
+    // framebuffer[7] = 128'h0000000000000000FF00000000000000;
+    // framebuffer[8] = 128'h00000000000000FF0000000000000000;
+    // framebuffer[9] = 128'h000000000000FF000000000000000000;
+    // framebuffer[10] = 128'h0000000000FF00000000000000000000;
+    // framebuffer[11] = 128'h00000000FF0000000000000000000000;
+    // framebuffer[12] = 128'h000000FF000000000000000000000000;
+    // framebuffer[13] = 128'h0000FF00000000000000000000000000;
+    // framebuffer[14] = 128'h00FF0000000000000000000000000000;
+    // framebuffer[15] = 128'hFF000000000000000000000000000000;
+    // framebuffer[16] = 128'h000000000000000000000000000000FF;
+    // framebuffer[17] = 128'h0000000000000000000000000000FF00;
+    // framebuffer[18] = 128'h00000000000000000000000000FF0000;
+    // framebuffer[19] = 128'h000000000000000000000000FF000000;
+    // framebuffer[20] = 128'h0000000000000000000000FF00000000;
+    // framebuffer[21] = 128'h00000000000000000000FF0000000000;
+    // framebuffer[22] = 128'h000000000000000000FF000000000000;
+    // framebuffer[23] = 128'h0000000000000000FF00000000000000;
+    // framebuffer[24] = 128'h00000000000000FF0000000000000000;
+    // framebuffer[25] = 128'h000000000000FF000000000000000000;
+    // framebuffer[26] = 128'h0000000000FF00000000000000000000;
+    // framebuffer[27] = 128'h00000000FF0000000000000000000000;
+    // framebuffer[28] = 128'h000000FF000000000000000000000000;
+    // framebuffer[29] = 128'h0000FF00000000000000000000000000;
+    // framebuffer[30] = 128'h00FF0000000000000000000000000000;
+    // framebuffer[31] = 128'hFF000000000000000000000000000000;
+    // framebuffer[32] = 128'h000000000000000000000000000000FF;
+    // framebuffer[33] = 128'h0000000000000000000000000000FF00;
+    // framebuffer[34] = 128'h00000000000000000000000000FF0000;
+    // framebuffer[35] = 128'h000000000000000000000000FF000000;
+    // framebuffer[36] = 128'h0000000000000000000000FF00000000;
+    // framebuffer[37] = 128'h00000000000000000000FF0000000000;
+    // framebuffer[38] = 128'h000000000000000000FF000000000000;
+    // framebuffer[39] = 128'h0000000000000000FF00000000000000;
+    // framebuffer[40] = 128'h00000000000000FF0000000000000000;
+    // framebuffer[41] = 128'h000000000000FF000000000000000000;
+    // framebuffer[42] = 128'h0000000000FF00000000000000000000;
+    // framebuffer[43] = 128'h00000000FF0000000000000000000000;
+    // framebuffer[44] = 128'h000000FF000000000000000000000000;
+    // framebuffer[45] = 128'h0000FF00000000000000000000000000;
+    // framebuffer[46] = 128'h00FF0000000000000000000000000000;
+    // framebuffer[47] = 128'hFF000000000000000000000000000000;
+    // framebuffer[48] = 128'h000000000000000000000000000000FF;
+    // framebuffer[49] = 128'h0000000000000000000000000000FF00;
+    // framebuffer[50] = 128'h00000000000000000000000000FF0000;
+    // framebuffer[51] = 128'h000000000000000000000000FF000000;
+    // framebuffer[52] = 128'h0000000000000000000000FF00000000;
+    // framebuffer[53] = 128'h00000000000000000000FF0000000000;
+    // framebuffer[54] = 128'h000000000000000000FF000000000000;
+    // framebuffer[55] = 128'h0000000000000000FF00000000000000;
+    // framebuffer[56] = 128'h00000000000000FF0000000000000000;
+    // framebuffer[57] = 128'h000000000000FF000000000000000000;
+    // framebuffer[58] = 128'h0000000000FF00000000000000000000;
+    // framebuffer[59] = 128'h00000000FF0000000000000000000000;
+    // framebuffer[60] = 128'h000000FF000000000000000000000000;
+    // framebuffer[61] = 128'h0000FF00000000000000000000000000;
+    // framebuffer[62] = 128'h00FF0000000000000000000000000000;
+    // framebuffer[63] = 128'hFF000000000000000000000000000000;
 end
-//initial $readmemh("examples/image.hex", framebuffer);
+
 
 // Operation State Machine registers
 reg [4:0] operation_state = 0; // Current state of the operation state machine
@@ -237,14 +290,14 @@ always @(posedge clk) begin
                 // Wire up the framebuffer to the write byte
                 draw_row <= draw_page * 8;
                 write_byte <= {
-                    framebuffer[(draw_page * 8) + 0][draw_column],
-                    framebuffer[(draw_page * 8) + 1][draw_column],
-                    framebuffer[(draw_page * 8) + 2][draw_column],
-                    framebuffer[(draw_page * 8) + 3][draw_column],
-                    framebuffer[(draw_page * 8) + 4][draw_column],
-                    framebuffer[(draw_page * 8) + 5][draw_column],
+                    framebuffer[(draw_page * 8) + 7][draw_column],
                     framebuffer[(draw_page * 8) + 6][draw_column],
-                    framebuffer[(draw_page * 8) + 7][draw_column]
+                    framebuffer[(draw_page * 8) + 5][draw_column],
+                    framebuffer[(draw_page * 8) + 4][draw_column],
+                    framebuffer[(draw_page * 8) + 3][draw_column],
+                    framebuffer[(draw_page * 8) + 2][draw_column],
+                    framebuffer[(draw_page * 8) + 1][draw_column],
+                    framebuffer[(draw_page * 8) + 0][draw_column]
                 };
 
                 // Write the data
