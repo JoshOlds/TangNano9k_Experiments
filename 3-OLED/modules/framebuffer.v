@@ -21,7 +21,7 @@ localparam H_PIXELS = 128; // Horizontal resolution in pixels
 localparam V_PIXELS = 64; // Vertical resolution in pixels
 
 reg [7:0] framebuffer [(H_PIXELS/8)*V_PIXELS-1:0]; // Framebuffer memory (1 bit per pixel, 8 pixels per byte)
-integer i = 0;
+integer i;
 
 // Local read registers
 reg [7:0] r_left_byte;

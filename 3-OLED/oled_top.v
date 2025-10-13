@@ -21,6 +21,31 @@ always @(posedge clk_pin) begin
     oled_clk <= clock_divider[15]; // 411hz
 end
 
+// Framebuffer drive registers
+reg fb_we = 0; // Framebuffer write enable
+reg [7:0] fb_w_xpos = 0; // Framebuffer write x position
+reg [7:0] fb_w_ypos = 0; // Framebuffer write y position
+reg [7:0] fb_din = 0; // Framebuffer data input (8 pixels, 1 bit each)  
+reg fb_re = 0; // Framebuffer read enable
+wire [7:0] fb_dout; // Framebuffer data output (8 pixels, 1 bit each)
+reg [7:0] fb_r_xpos = 0; // Framebuffer read x position
+reg [7:0] fb_r_ypos = 0; // Framebuffer read y position
+reg fb_r_mode = 0; // Framebuffer read mode (0: horizontal read, 1: column read)
+
+framebuffer_monochrome fb(
+    .clk(clk_pin),
+    .rst(button1_active_high),
+    .we(fb_we),
+    .w_xpos(fb_w_xpos),
+    .w_ypos(fb_w_ypos),
+    .din(fb_din),
+    .re(fb_re),
+    .dout(fb_dout),
+    .r_xpos(fb_r_xpos),
+    .r_ypos(fb_r_ypos),
+    .r_mode(fb_r_mode)
+);
+
 ssd1309_driver oled_driver(
     .clk(clk_pin),
     .reset(button1_active_high),

@@ -55,7 +55,6 @@ localparam IDLE = 7;
 //reg [DISPLAY_WIDTH-1:0] framebuffer [0:DISPLAY_HEIGHT-1];
 reg [127:0] framebuffer [0:63]; // 128 bits wide (one row), 64 rows
 // Initialize framebuffer to zeros
-integer i;
 initial begin
     // for (i = 0; i < 64; i = i + 1) begin
     //     framebuffer[i] = 128'h0;
