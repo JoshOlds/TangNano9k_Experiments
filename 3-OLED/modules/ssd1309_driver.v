@@ -1,5 +1,9 @@
 `default_nettype none
 
+// TODO: test reading from framebuffer module - update the draw_framebuffer state to read from the framebuffer module instead of internal memory
+// TODO: Can we make a framebuffer test bench?
+// TODO: Clear screen should reset the framebuffer
+
 module ssd1309_driver(
     input clk, // Module input clock. Assumes 27Mhz. SPI data will clock out at half this frequency
     input reset, // Active high - resets state machine and reinitializes the module
@@ -8,7 +12,14 @@ module ssd1309_driver(
     output reg res, // OLED reset pin
     output reg cmd, // OLED command pin - Command == LOW, pixel data == HIGH
     output reg cs, // OLED chip select pin - pull low to communicate with module
-    output reg [4:0] led_pin_o // For debugging - shows current state of operation state machine
+    output reg [4:0] led_pin_o, // For debugging - shows current state of operation state machine
+
+    // Framebuffer interface
+    input fb_dout, // Framebuffer read data output (8 pixels, 1 bit each)
+    output reg [7:0] fb_r_xpos, // Framebuffer read x position
+    output reg [7:0] fb_r_ypos, // Framebuffer read y position
+    output reg fb_r_mode, // Framebuffer read mode (0: horizontal read, 1: column read)
+    output reg fb_re // Framebuffer read enable (active high)
 );
 
 initial begin
@@ -17,6 +28,12 @@ initial begin
     res <= 1;
     cmd <= 0;
     cs <= 1;
+
+    // Framebuffer interface
+    fb_r_xpos <= 0;
+    fb_r_ypos <= 0;
+    fb_r_mode <= 1; // Default to column read mode
+    fb_re <= 0;
 end
 
 parameter DISPLAY_WIDTH = 128;
@@ -49,82 +66,13 @@ localparam INITIALIZING = 3;
 localparam CLEAR_SCREEN = 4;
 localparam DRAW_FRAMEBUFFER = 5;
 localparam WRITE = 6; 
-localparam IDLE = 7;
+localparam WAITING_FOR_FRAMERATE = 7; // New state for frame rate delay
+localparam IDLE = 8; // Shifted IDLE to 8
 
-// Framebuffer register
-//reg [DISPLAY_WIDTH-1:0] framebuffer [0:DISPLAY_HEIGHT-1];
-reg [127:0] framebuffer [0:63]; // 128 bits wide (one row), 64 rows
-// Initialize framebuffer to zeros
-initial begin
-    // for (i = 0; i < 64; i = i + 1) begin
-    //     framebuffer[i] = 128'h0;
-    // end
-    $readmemb("examples/horse_oled_128x64.bin", framebuffer);
-    // framebuffer[0] = 128'h000000000000000000000000000000FF;
-    // framebuffer[1] = 128'h0000000000000000000000000000FF00;
-    // framebuffer[2] = 128'h00000000000000000000000000FF0000;
-    // framebuffer[3] = 128'h000000000000000000000000FF000000;
-    // framebuffer[4] = 128'h0000000000000000000000FF00000000;
-    // framebuffer[5] = 128'h00000000000000000000FF0000000000;
-    // framebuffer[6] = 128'h000000000000000000FF000000000000;
-    // framebuffer[7] = 128'h0000000000000000FF00000000000000;
-    // framebuffer[8] = 128'h00000000000000FF0000000000000000;
-    // framebuffer[9] = 128'h000000000000FF000000000000000000;
-    // framebuffer[10] = 128'h0000000000FF00000000000000000000;
-    // framebuffer[11] = 128'h00000000FF0000000000000000000000;
-    // framebuffer[12] = 128'h000000FF000000000000000000000000;
-    // framebuffer[13] = 128'h0000FF00000000000000000000000000;
-    // framebuffer[14] = 128'h00FF0000000000000000000000000000;
-    // framebuffer[15] = 128'hFF000000000000000000000000000000;
-    // framebuffer[16] = 128'h000000000000000000000000000000FF;
-    // framebuffer[17] = 128'h0000000000000000000000000000FF00;
-    // framebuffer[18] = 128'h00000000000000000000000000FF0000;
-    // framebuffer[19] = 128'h000000000000000000000000FF000000;
-    // framebuffer[20] = 128'h0000000000000000000000FF00000000;
-    // framebuffer[21] = 128'h00000000000000000000FF0000000000;
-    // framebuffer[22] = 128'h000000000000000000FF000000000000;
-    // framebuffer[23] = 128'h0000000000000000FF00000000000000;
-    // framebuffer[24] = 128'h00000000000000FF0000000000000000;
-    // framebuffer[25] = 128'h000000000000FF000000000000000000;
-    // framebuffer[26] = 128'h0000000000FF00000000000000000000;
-    // framebuffer[27] = 128'h00000000FF0000000000000000000000;
-    // framebuffer[28] = 128'h000000FF000000000000000000000000;
-    // framebuffer[29] = 128'h0000FF00000000000000000000000000;
-    // framebuffer[30] = 128'h00FF0000000000000000000000000000;
-    // framebuffer[31] = 128'hFF000000000000000000000000000000;
-    // framebuffer[32] = 128'h000000000000000000000000000000FF;
-    // framebuffer[33] = 128'h0000000000000000000000000000FF00;
-    // framebuffer[34] = 128'h00000000000000000000000000FF0000;
-    // framebuffer[35] = 128'h000000000000000000000000FF000000;
-    // framebuffer[36] = 128'h0000000000000000000000FF00000000;
-    // framebuffer[37] = 128'h00000000000000000000FF0000000000;
-    // framebuffer[38] = 128'h000000000000000000FF000000000000;
-    // framebuffer[39] = 128'h0000000000000000FF00000000000000;
-    // framebuffer[40] = 128'h00000000000000FF0000000000000000;
-    // framebuffer[41] = 128'h000000000000FF000000000000000000;
-    // framebuffer[42] = 128'h0000000000FF00000000000000000000;
-    // framebuffer[43] = 128'h00000000FF0000000000000000000000;
-    // framebuffer[44] = 128'h000000FF000000000000000000000000;
-    // framebuffer[45] = 128'h0000FF00000000000000000000000000;
-    // framebuffer[46] = 128'h00FF0000000000000000000000000000;
-    // framebuffer[47] = 128'hFF000000000000000000000000000000;
-    // framebuffer[48] = 128'h000000000000000000000000000000FF;
-    // framebuffer[49] = 128'h0000000000000000000000000000FF00;
-    // framebuffer[50] = 128'h00000000000000000000000000FF0000;
-    // framebuffer[51] = 128'h000000000000000000000000FF000000;
-    // framebuffer[52] = 128'h0000000000000000000000FF00000000;
-    // framebuffer[53] = 128'h00000000000000000000FF0000000000;
-    // framebuffer[54] = 128'h000000000000000000FF000000000000;
-    // framebuffer[55] = 128'h0000000000000000FF00000000000000;
-    // framebuffer[56] = 128'h00000000000000FF0000000000000000;
-    // framebuffer[57] = 128'h000000000000FF000000000000000000;
-    // framebuffer[58] = 128'h0000000000FF00000000000000000000;
-    // framebuffer[59] = 128'h00000000FF0000000000000000000000;
-    // framebuffer[60] = 128'h000000FF000000000000000000000000;
-    // framebuffer[61] = 128'h0000FF00000000000000000000000000;
-    // framebuffer[62] = 128'h00FF0000000000000000000000000000;
-    // framebuffer[63] = 128'hFF000000000000000000000000000000;
-end
+
+// initial begin
+//     $readmemb("examples/horse_oled_128x64.bin", framebuffer);
+// end
 
 
 // Operation State Machine registers
@@ -145,28 +93,9 @@ reg [4:0] return_state = 0; // State to return to after writing a byte
 reg [31:0] frame_rate_counter = 0; // Counter to delay between drawing frames
 reg [7:0] draw_column = 0; // Current column being drawn
 reg [7:0] draw_page = 0; // Current page being drawn (8 pages for 64 pixel height)
-reg [7:0] draw_row = 0; // Current row being drawn
 reg frame_complete = 0; // Flag to designate if a full frame has completed writing
-
-
-
-// Debug Registers and Assignments
-
-//assign led_pin_o[4] = ~sclk; // For debugging - show when a write is complete
-reg [23:0] debug_write_byte = 0;
-
-// Debug - every second increment the data in the framebuffer
-// reg [31:0] debug_framebuffer_counter = 0;
-// always @(posedge clk) begin
-//     led_pin_o[5:0] = ~draw_page; // For debugging - show current state on LEDs
-//     debug_framebuffer_counter <= debug_framebuffer_counter + 1;
-//     if(debug_framebuffer_counter >= 27000000 / 1000) begin // Every second
-//         framebuffer[0] <= framebuffer[0] + 1; // Increment first row of framebuffer
-//         debug_framebuffer_counter <= 0;
-//     end
-// end
-
-
+reg waiting_for_data = 0; // Flag to wait for framebuffer data to be valid
+reg ready_to_increment = 0; // Flag to increment draw_column after writing
 
 
 // Operation state machine
@@ -177,11 +106,18 @@ always @(posedge clk) begin
         operation_state <= STARTUP_PRE_RESET;
         startup_delay_counter <= 0;
         initialization_command_index <= 0;
+        clear_counter <= 0;
         write_byte <= 0;
         write_byte_bit_counter <= 0;
         write_clock_counter <= 0;
         write_complete <= 0;
         return_state <= 0;
+        frame_rate_counter <= 0;
+        draw_column <= 0;
+        draw_page <= 0;
+        frame_complete <= 0;
+        waiting_for_data <= 0;
+        ready_to_increment <= 0;
     end
 
 
@@ -250,62 +186,75 @@ always @(posedge clk) begin
 
         // CLEAR_SCREEN: Clear the display by writing zeros to the entire framebuffer
         CLEAR_SCREEN: begin
-            if(clear_counter < DISPLAY_WIDTH * DISPLAY_HEIGHT / 8) begin
-                write_byte <= 8'h00; // Byte of zeros to clear the screen
-                cmd <= 1; // Data mode
-                return_state <= CLEAR_SCREEN; // After writing byte, return to CLEAR_SCREEN state
-                operation_state <= WRITE; // Go to WRITE state to send the byte
-                clear_counter <= clear_counter + 1; // Increment clear counter
-            end
-            else begin
-                clear_counter <= 0;
-                operation_state <= DRAW_FRAMEBUFFER;
-            end
+            // if(clear_counter < DISPLAY_WIDTH * DISPLAY_HEIGHT / 8) begin
+            //     write_byte <= 8'h00; // Byte of zeros to clear the screen
+            //     cmd <= 1; // Data mode
+            //     return_state <= CLEAR_SCREEN; // After writing byte, return to CLEAR_SCREEN state
+            //     operation_state <= WRITE; // Go to WRITE state to send the byte
+            //     clear_counter <= clear_counter + 1; // Increment clear counter
+            // end
+            // else begin
+            //     clear_counter <= 0;
+            //     operation_state <= DRAW_FRAMEBUFFER;
+            // end
+            operation_state <= DRAW_FRAMEBUFFER;
         end
 
         // DRAW_FRAMEBUFFER: Write the contents of the framebuffer to the display
         DRAW_FRAMEBUFFER: begin
-            if (draw_column >= 127) begin // Rollover at 127 columns
-                if(draw_page >= 7) begin // If we are at the final (bottom) page, delay to achieve frame_rate, then loop back to top-left
-                    frame_complete <= 1;
-                    frame_rate_counter <= frame_rate_counter + 1;
-                    if(frame_rate_counter >= FRAME_RATE_DELAY) begin // Wait for frame rate time
-                        frame_complete <= 0;
-                        frame_rate_counter <= 0;
+            // Only increment the draw position after a write has completed
+            if (ready_to_increment) begin
+                ready_to_increment <= 0;
+                // Increment draw_column after writing
+                if (draw_column >= 127) begin 
+                    if (draw_page >= 7) begin 
+                        // All pages complete
+                        operation_state <= WAITING_FOR_FRAMERATE;
+                        frame_complete <= 1;
+                    end else begin
+                        // Reached the end of the row, move to next page
                         draw_column <= 0;
-                        draw_page <= 0;
+                        draw_page <= draw_page + 1;
                     end
+                end else begin
+                    // Not at the end of the row, increment column
+                    draw_column <= draw_column + 1;
                 end
-                else begin // Otherwise increment the page
-                    draw_column <= 0;
-                    draw_page <= draw_page + 1;
-                end
-            end
-            else begin
-                draw_column <= draw_column + 1;
             end
 
             if(!frame_complete) begin
-                // Wire up the framebuffer to the write byte
-                draw_row <= draw_page * 8;
-                write_byte <= {
-                    framebuffer[(draw_page * 8) + 7][draw_column],
-                    framebuffer[(draw_page * 8) + 6][draw_column],
-                    framebuffer[(draw_page * 8) + 5][draw_column],
-                    framebuffer[(draw_page * 8) + 4][draw_column],
-                    framebuffer[(draw_page * 8) + 3][draw_column],
-                    framebuffer[(draw_page * 8) + 2][draw_column],
-                    framebuffer[(draw_page * 8) + 1][draw_column],
-                    framebuffer[(draw_page * 8) + 0][draw_column]
-                };
-
-                // Write the data
-                cmd <= 1; // Data mode
-                return_state <= DRAW_FRAMEBUFFER;
-                operation_state <= WRITE;
+                if (!waiting_for_data) begin
+                    // Initiate framebuffer read
+                    fb_r_mode <= 1; // Column read mode
+                    fb_r_xpos <= draw_column;
+                    fb_r_ypos <= draw_page * 8;
+                    fb_re <= 1; // Enable read
+                    waiting_for_data <= 1;
+                end else begin
+                    // Data is now valid, capture it and prepare to write
+                    write_byte <= fb_dout;
+                    fb_re <= 0; // Disable read
+                    // Transition to WRITE state to send the data byte
+                    cmd <= 1; // Data mode
+                    return_state <= DRAW_FRAMEBUFFER;
+                    operation_state <= WRITE;
+                    ready_to_increment <= 1; // Set flag to increment after writing
+                    waiting_for_data <= 0;
+                end
             end
         end
 
+        // WAITING_FOR_FRAMERATE: Wait for the frame rate delay before starting the next frame
+        WAITING_FOR_FRAMERATE: begin
+            frame_rate_counter <= frame_rate_counter + 1;
+            if(frame_rate_counter >= FRAME_RATE_DELAY) begin
+                frame_rate_counter <= 0;
+                draw_column <= 0;
+                draw_page <= 0;
+                frame_complete <= 0;
+                operation_state <= DRAW_FRAMEBUFFER;
+            end
+        end
 
         // WRITE: Send a byte to the OLED - assumes cmd/data mode has been set appropriately before entering this state
         WRITE: begin
@@ -336,17 +285,9 @@ always @(posedge clk) begin
             end
         end
 
-        // IDLE: Wait here until further instructions (for simulation, we will write a byte of data every second)
+        
         IDLE: begin
-            startup_delay_counter <= startup_delay_counter + 1; 
-            if(startup_delay_counter >= 439) begin
-                startup_delay_counter <= 0;
-                write_byte <= debug_write_byte/30; 
-                debug_write_byte <= debug_write_byte + 1; // Increment the byte to write next time
-                cmd <= 1; // Data mode
-                return_state <= IDLE;
-                operation_state <= WRITE;
-            end
+        
         end
 
     endcase

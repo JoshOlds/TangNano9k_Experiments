@@ -14,6 +14,7 @@ module oled_top(
 reg button1_active_high = 0;
 assign button1_active_high = ~btn1_pin; // Invert button signal to be active high
 
+// Generate a slower clock for the OLED driver and framebuffer
 reg [15:0] clock_divider = 0;
 reg oled_clk = 0;
 always @(posedge clk_pin) begin
@@ -26,11 +27,11 @@ reg fb_we = 0; // Framebuffer write enable
 reg [7:0] fb_w_xpos = 0; // Framebuffer write x position
 reg [7:0] fb_w_ypos = 0; // Framebuffer write y position
 reg [7:0] fb_din = 0; // Framebuffer data input (8 pixels, 1 bit each)  
-reg fb_re = 0; // Framebuffer read enable
+wire fb_re; // Framebuffer read enable
 wire [7:0] fb_dout; // Framebuffer data output (8 pixels, 1 bit each)
-reg [7:0] fb_r_xpos = 0; // Framebuffer read x position
-reg [7:0] fb_r_ypos = 0; // Framebuffer read y position
-reg fb_r_mode = 0; // Framebuffer read mode (0: horizontal read, 1: column read)
+wire [7:0] fb_r_xpos; // Framebuffer read x position
+wire [7:0] fb_r_ypos; // Framebuffer read y position
+wire fb_r_mode; // Framebuffer read mode (0: horizontal read, 1: column read)
 
 framebuffer_monochrome fb(
     .clk(clk_pin),
@@ -54,7 +55,48 @@ ssd1309_driver oled_driver(
     .res(oled_res_pin), 
     .cmd(oled_dc_pin), 
     .cs(oled_cs_pin), 
-    .led_pin_o(led_pin)
+    .led_pin_o(led_pin),
+    .fb_dout(fb_dout),
+    .fb_r_xpos(fb_r_xpos),
+    .fb_r_ypos(fb_r_ypos),
+    .fb_r_mode(fb_r_mode),
+    .fb_re(fb_re)
 );
+
+// Framebuffer test registers
+reg [31:0] write_counter = 0; // Counter for 1 second delay (27Mhz clock)
+reg [7:0] write_x = 0; // Current write X position
+reg [7:0] write_y = 0; // Current write Y position
+
+always @(posedge clk_pin) begin
+    // Reset test counters on button press
+    if(button1_active_high) begin
+        write_counter <= 0;
+        write_x <= 0;
+        write_y <= 0;
+    end else begin
+        write_counter <= write_counter + 1;
+        if(write_counter >= 27000000) begin // 1 second at 27Mhz
+            write_counter <= 0;
+            fb_we <= 1;
+            fb_w_xpos <= write_x;
+            fb_w_ypos <= write_y;
+            fb_din <= 8'h01;
+            // Increment position
+            if(write_x >= 127) begin 
+                write_x <= 0;
+                if(write_y >= 63) begin
+                    write_y <= 0;
+                end else begin
+                    write_y <= write_y + 1;
+                end
+            end else begin
+                write_x <= write_x + 1;
+            end
+        end else begin
+            fb_we <= 0;
+        end
+    end
+end
 
 endmodule
