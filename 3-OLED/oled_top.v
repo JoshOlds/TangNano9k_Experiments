@@ -23,6 +23,8 @@ always @(posedge clk_pin) begin
 end
 
 // Framebuffer drive registers /////////////////////////////////////////
+wire fb_busy; // Framebuffer busy signal
+
 reg fb_we = 0; // Framebuffer write enable
 reg [7:0] fb_w_xpos = 0; // Framebuffer write x position
 reg [7:0] fb_w_ypos = 0; // Framebuffer write y position
@@ -41,6 +43,7 @@ framebuffer_monochrome fb(
     .clk(clk_pin),
     .rst(button1_active_high),
     .rst_complete(fb_rst_complete),
+    .busy(fb_busy),
     .we(fb_we),
     .w_data_valid(fb_w_data_valid),
     .w_xpos(fb_w_xpos),
@@ -83,7 +86,10 @@ always @(posedge clk_pin) begin
         write_counter <= 0;
         write_x <= 0;
         write_y <= 0;
-    end else begin
+        write_in_progress <= 0;
+    end 
+
+    if (!write_in_progress) begin
         write_counter <= write_counter + 1;
         if(write_counter >= 27000000) begin // 1 second at 27Mhz
             write_counter <= 0;
@@ -103,17 +109,17 @@ always @(posedge clk_pin) begin
     end
 
     if(write_in_progress) begin
-        if (!fb_w_data_valid) begin
-            fb_we <= 1;
-            fb_w_xpos <= write_x;
-            fb_w_ypos <= write_y;
-            fb_din <= 8'hFF;
+        if (!fb_busy) begin // Wait until framebuffer is not busy
+            if (!fb_w_data_valid) begin
+                fb_we <= 1;
+                fb_w_xpos <= write_x;
+                fb_w_ypos <= write_y;
+                fb_din <= 8'hFF;
+            end else begin // Write complete
+                fb_we <= 0;
+                write_in_progress <= 0;
+            end
         end
-        else begin
-            fb_we <= 0;
-            write_in_progress <= 0;
-        end
-    end
+    end     
 end
-
 endmodule

@@ -40,19 +40,19 @@ reg [11:0] reset_addr = 0; // Address pointer used during framebuffer clear
 single_port_bram #(
     .ADDR_WIDTH(12), // 128*64/8 = 1024 bytes = 2^10, so 12 bits is enough
     .DATA_WIDTH(8),
-    .DEPTH((H_PIXELS/8)*V_PIXELS) // Total framebuffer size in bytes
+    .DEPTH(FRAMEBUFFER_DEPTH) // Total framebuffer size in bytes
 ) bram (
     .clk(clk),
     .we(ram_we),
     .addr(ram_addr),
     .din(ram_din),
-    .dout(ram_dout),
+    .dout(ram_dout)
 );
 
 
 // Address calculation registers
-reg [11:0] r_addr = 0;
-reg [11:0] w_addr = 0;
+wire [11:0] r_addr = (r_ypos * (H_PIXELS / 8)) + (r_xpos / 8);
+wire [11:0] w_addr = (w_ypos * (H_PIXELS / 8)) + (w_xpos / 8);
 
 // Local read registers
 reg r_aligned_pipeline_flag = 0; // Pipeline flag for aligned read
@@ -84,13 +84,14 @@ reg [7:0] w_masked_right = 0;
 
 // Combinational register logic ///////////////////////////
 // Write address calculation
-always @(w_xpos or w_ypos) begin
-    w_addr <= (w_ypos * (H_PIXELS / 8)) + (w_xpos / 8);
-end
+//assign w_addr = (w_ypos * (H_PIXELS / 8)) + (w_xpos / 8); 
+// always @(w_xpos or w_ypos) begin
+//     w_addr = (w_ypos * (H_PIXELS / 8)) + (w_xpos / 8);
+// end
 // Read address calculation
-always @(r_xpos or r_ypos) begin
-    r_addr <= (r_ypos * (H_PIXELS / 8)) + (r_xpos / 8);
-end
+// always @(r_xpos or r_ypos) begin
+//     r_addr = (r_ypos * (H_PIXELS / 8)) + (r_xpos / 8);
+// end
 // Write Mask Calculations for unaligned writes
 always @(w_xpos) begin
     w_left_mask = 8'hFF << (w_xpos % 8);
@@ -124,8 +125,6 @@ always @(posedge clk) begin
         w_right_mask <= 8'h00;
         w_masked_left <= 8'h00;
         w_masked_right <= 8'h00;
-        r_addr <= 12'h000;
-        w_addr <= 12'h000;
         r_aligned_pipeline_flag <= 0;
         r_unaligned_pipeline_counter <= 0;
         r_column_pipeline_counter <= 0;
@@ -154,6 +153,7 @@ always @(posedge clk) begin
             reset_active <= 1'b0;
             rst_complete <= 1'b1;
             ram_we <= 1'b0;
+            ram_addr <= 12'h000;
         end else begin // Not last address yet, increment address
             reset_addr <= reset_addr + 12'd1; // Increment by one (000000000001)
         end

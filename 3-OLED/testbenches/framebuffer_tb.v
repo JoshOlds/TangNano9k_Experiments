@@ -12,6 +12,7 @@ localparam CLK_PERIOD = 10; // 10ns clock period (100MHz)
 reg clk;
 reg rst;
 reg we;
+wire fb_busy;
 reg [7:0] w_xpos;
 reg [7:0] w_ypos;
 reg [7:0] din;
@@ -34,6 +35,7 @@ framebuffer_monochrome dut (
     .clk(clk),
     .rst(rst),
     .rst_complete(rst_complete),
+    .busy(fb_busy),
     .we(we),
     .w_data_valid(w_data_valid),
     .w_xpos(w_xpos),
@@ -60,10 +62,11 @@ task write_pixel_byte;
     input [7:0] data;
     begin
         @(posedge clk);
-        we = 1;
         w_xpos = x;
         w_ypos = y;
         din = data;
+        @(posedge clk);
+        we = 1;
         while (!w_data_valid) begin
             @(posedge clk);
         end
@@ -82,13 +85,15 @@ task read_pixel_byte_horizontal;
     output [7:0] data;
     begin
         @(posedge clk);
-        re = 1;
         r_xpos = x;
         r_ypos = y;
         r_mode = 0; // Horizontal read mode
+        @(posedge clk);
+        re = 1;
         while (!r_data_valid) begin
             @(posedge clk);
         end
+        @(posedge clk);
         data = dout;
         @(posedge clk);
         re = 0;
@@ -105,13 +110,15 @@ task read_pixel_byte_column;
     output [7:0] data;
     begin
         @(posedge clk);
-        re = 1;
         r_xpos = x;
         r_ypos = y;
         r_mode = 1; // Column read mode
+        @(posedge clk);
+        re = 1;
         while (!r_data_valid) begin
             @(posedge clk);
         end
+        @(posedge clk);
         data = dout;
         @(posedge clk);
         re = 0;
