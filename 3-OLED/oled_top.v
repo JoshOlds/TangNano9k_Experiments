@@ -22,25 +22,30 @@ always @(posedge clk_pin) begin
     oled_clk <= clock_divider[15]; // 411hz
 end
 
-// Framebuffer drive registers
+// Framebuffer drive registers /////////////////////////////////////////
 reg fb_we = 0; // Framebuffer write enable
 reg [7:0] fb_w_xpos = 0; // Framebuffer write x position
 reg [7:0] fb_w_ypos = 0; // Framebuffer write y position
 reg [7:0] fb_din = 0; // Framebuffer data input (8 pixels, 1 bit each)  
+wire fb_w_data_valid; // Framebuffer write data valid signal
+
 wire fb_re; // Framebuffer read enable
 wire [7:0] fb_dout; // Framebuffer data output (8 pixels, 1 bit each)
 wire [7:0] fb_r_xpos; // Framebuffer read x position
 wire [7:0] fb_r_ypos; // Framebuffer read y position
 wire fb_r_mode; // Framebuffer read mode (0: horizontal read, 1: column read)
+wire fb_r_data_valid; // Framebuffer read data valid signal
 
 framebuffer_monochrome fb(
     .clk(clk_pin),
     .rst(button1_active_high),
     .we(fb_we),
+    .w_data_valid(fb_w_data_valid),
     .w_xpos(fb_w_xpos),
     .w_ypos(fb_w_ypos),
     .din(fb_din),
     .re(fb_re),
+    .r_data_valid(fb_r_data_valid),
     .dout(fb_dout),
     .r_xpos(fb_r_xpos),
     .r_ypos(fb_r_ypos),
@@ -57,6 +62,7 @@ ssd1309_driver oled_driver(
     .cs(oled_cs_pin), 
     .led_pin_o(led_pin),
     .fb_dout(fb_dout),
+    .fb_data_valid(fb_r_data_valid),
     .fb_r_xpos(fb_r_xpos),
     .fb_r_ypos(fb_r_ypos),
     .fb_r_mode(fb_r_mode),
@@ -67,6 +73,7 @@ ssd1309_driver oled_driver(
 reg [31:0] write_counter = 0; // Counter for 1 second delay (27Mhz clock)
 reg [7:0] write_x = 0; // Current write X position
 reg [7:0] write_y = 0; // Current write Y position
+reg write_in_progress = 0;
 
 always @(posedge clk_pin) begin
     // Reset test counters on button press
@@ -78,10 +85,7 @@ always @(posedge clk_pin) begin
         write_counter <= write_counter + 1;
         if(write_counter >= 27000000) begin // 1 second at 27Mhz
             write_counter <= 0;
-            fb_we <= 1;
-            fb_w_xpos <= write_x;
-            fb_w_ypos <= write_y;
-            fb_din <= 8'h01;
+            write_in_progress <= 1;
             // Increment position
             if(write_x >= 127) begin 
                 write_x <= 0;
@@ -93,8 +97,19 @@ always @(posedge clk_pin) begin
             end else begin
                 write_x <= write_x + 1;
             end
-        end else begin
+        end
+    end
+
+    if(write_in_progress) begin
+        if (!fb_w_data_valid) begin
+            fb_we <= 1;
+            fb_w_xpos <= write_x;
+            fb_w_ypos <= write_y;
+            fb_din <= 8'hFF;
+        end
+        else begin
             fb_we <= 0;
+            write_in_progress <= 0;
         end
     end
 end

@@ -261,7 +261,29 @@ initial begin
     if (read_data == 8'b10101010) $display("PASS: Unaligned read at (12,2): 0x%02h", read_data);
     else $display("FAIL: Unaligned read at (12,2): 0x%02h (expected: 0x%02h)", read_data, 8'b10101010);
 
+   // Verify unaligned writes do not disrupt other data
+    $display("Writing data for unaligned write verification...\n");
+    write_pixel_byte(0, 5, 8'b11111111);
+    write_pixel_byte(8, 5, 8'b11111111);
+    write_pixel_byte(4, 5, 8'b11000011);
+
+    $display("Checking unaligned write did not disrupt other data...\n");
+    // Read left byte at (0,5)
+    read_pixel_byte_horizontal(0, 5, read_data);
+    if (read_data == 8'b11111100) $display("PASS: Unaligned read at (0,5): 0x%02h", read_data);
+    else $display("FAIL: Unaligned read at (0,5): 0x%02h (expected: 0x%02h)", read_data, 8'b11111100);
+    // Read right byte at (8,5)
+    read_pixel_byte_horizontal(8, 5, read_data);
+    if (read_data == 8'b00111111) $display("PASS: Unaligned read at (8,5): 0x%02h", read_data);
+    else $display("FAIL: Unaligned read at (8,5): 0x%02h (expected: 0x%02h)", read_data, 8'b00111111);
+    // Unaligned read to check final write
+    read_pixel_byte_horizontal(4, 5, read_data);
+    if (read_data == 8'b11000011) $display("PASS: Unaligned read at (4,5): 0x%02h", read_data);
+    else $display("FAIL: Unaligned read at (4,5): 0x%02h (expected: 0x%02h)", read_data, 8'b11000011);
+
     $display("Unaligned write verification complete.\n");
+
+
     
     apply_reset();
 

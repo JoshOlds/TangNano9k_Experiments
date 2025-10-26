@@ -16,11 +16,14 @@ module ssd1309_driver(
 
     // Framebuffer interface
     input fb_dout, // Framebuffer read data output (8 pixels, 1 bit each)
+    input fb_data_valid, // Framebuffer read data valid signal
     output reg [7:0] fb_r_xpos, // Framebuffer read x position
     output reg [7:0] fb_r_ypos, // Framebuffer read y position
     output reg fb_r_mode, // Framebuffer read mode (0: horizontal read, 1: column read)
     output reg fb_re // Framebuffer read enable (active high)
 );
+
+assign led_pin_o = operation_state[4:0]; // Output current operation state for debugging
 
 initial begin
     sclk <= 0;
@@ -32,7 +35,7 @@ initial begin
     // Framebuffer interface
     fb_r_xpos <= 0;
     fb_r_ypos <= 0;
-    fb_r_mode <= 1; // Default to column read mode
+    fb_r_mode <= 0; // Default to horizontal read mode
     fb_re <= 0;
 end
 
@@ -202,7 +205,7 @@ always @(posedge clk) begin
 
         // DRAW_FRAMEBUFFER: Write the contents of the framebuffer to the display
         DRAW_FRAMEBUFFER: begin
-            // Only increment the draw position after a write has completed
+            // Increment col/page address after writing (happens after below READ logic)
             if (ready_to_increment) begin
                 ready_to_increment <= 0;
                 // Increment draw_column after writing
@@ -222,24 +225,23 @@ always @(posedge clk) begin
                 end
             end
 
+            // READ logic for reading from framebuffer
             if(!frame_complete) begin
-                if (!waiting_for_data) begin
-                    // Initiate framebuffer read
-                    fb_r_mode <= 1; // Column read mode
+                if (!fb_data_valid) begin
+                    // Initiate framebuffer read - stay here until data is valid
+                    fb_r_mode <= 1; // COLUMN read mode
                     fb_r_xpos <= draw_column;
                     fb_r_ypos <= draw_page * 8;
                     fb_re <= 1; // Enable read
-                    waiting_for_data <= 1;
                 end else begin
                     // Data is now valid, capture it and prepare to write
                     write_byte <= fb_dout;
-                    fb_re <= 0; // Disable read
+                    fb_re <= 0; // Disable read (which will clear fb_data_valid)
                     // Transition to WRITE state to send the data byte
                     cmd <= 1; // Data mode
                     return_state <= DRAW_FRAMEBUFFER;
                     operation_state <= WRITE;
                     ready_to_increment <= 1; // Set flag to increment after writing
-                    waiting_for_data <= 0;
                 end
             end
         end
