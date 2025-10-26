@@ -35,10 +35,12 @@ wire [7:0] fb_r_xpos; // Framebuffer read x position
 wire [7:0] fb_r_ypos; // Framebuffer read y position
 wire fb_r_mode; // Framebuffer read mode (0: horizontal read, 1: column read)
 wire fb_r_data_valid; // Framebuffer read data valid signal
+wire fb_rst_complete; // Framebuffer reset complete flag
 
 framebuffer_monochrome fb(
     .clk(clk_pin),
     .rst(button1_active_high),
+    .rst_complete(fb_rst_complete),
     .we(fb_we),
     .w_data_valid(fb_w_data_valid),
     .w_xpos(fb_w_xpos),

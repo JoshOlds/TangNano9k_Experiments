@@ -17,6 +17,9 @@ reg [7:0] w_ypos;
 reg [7:0] din;
 reg re;
 wire [7:0] dout;
+wire w_data_valid;
+wire r_data_valid;
+wire rst_complete;
 reg [7:0] r_xpos;
 reg [7:0] r_ypos;
 reg r_mode;
@@ -30,11 +33,14 @@ reg [7:0] read_data;
 framebuffer_monochrome dut (
     .clk(clk),
     .rst(rst),
+    .rst_complete(rst_complete),
     .we(we),
+    .w_data_valid(w_data_valid),
     .w_xpos(w_xpos),
     .w_ypos(w_ypos),
     .din(din),
     .re(re),
+    .r_data_valid(r_data_valid),
     .dout(dout),
     .r_xpos(r_xpos),
     .r_ypos(r_ypos),
@@ -58,9 +64,14 @@ task write_pixel_byte;
         w_xpos = x;
         w_ypos = y;
         din = data;
+        while (!w_data_valid) begin
+            @(posedge clk);
+        end
         @(posedge clk);
         we = 0;
-        @(posedge clk); // Extra cycle for write to complete
+        while (w_data_valid) begin
+            @(posedge clk);
+        end
     end
 endtask
 
@@ -75,11 +86,15 @@ task read_pixel_byte_horizontal;
         r_xpos = x;
         r_ypos = y;
         r_mode = 0; // Horizontal read mode
-        @(posedge clk);
-        @(posedge clk);
+        while (!r_data_valid) begin
+            @(posedge clk);
+        end
         data = dout;
-        re = 0;
         @(posedge clk);
+        re = 0;
+        while (r_data_valid) begin
+            @(posedge clk);
+        end
     end
 endtask
 
@@ -94,11 +109,15 @@ task read_pixel_byte_column;
         r_xpos = x;
         r_ypos = y;
         r_mode = 1; // Column read mode
-        @(posedge clk);
-        @(posedge clk);
+        while (!r_data_valid) begin
+            @(posedge clk);
+        end
         data = dout;
-        re = 0;
         @(posedge clk);
+        re = 0;
+        while (r_data_valid) begin
+            @(posedge clk);
+        end
     end
 endtask
 
@@ -118,9 +137,8 @@ task display_framebuffer;
             
             // Read each byte in the row
             for (col = 0; col < H_PIXELS; col = col + 8) begin
-                // Access the framebuffer directly
-                byte_data = dut.framebuffer[(row * (H_PIXELS / 8)) + (col / 8)];
-                
+                read_pixel_byte_horizontal(col[7:0], row[7:0], byte_data);
+
                 // Display each bit in the byte (MSB first)
                 for (bit_idx = 7; bit_idx >= 0; bit_idx = bit_idx - 1) begin
                     if (byte_data[bit_idx])
@@ -136,6 +154,16 @@ task display_framebuffer;
     end
 endtask
 
+// Task to wait for framebuffer reset completion
+task wait_for_reset_completion;
+    begin
+        while (!rst_complete) begin
+            @(posedge clk);
+        end
+        @(posedge clk);
+    end
+endtask
+
 // Task to apply reset
 task apply_reset;
     begin
@@ -144,7 +172,7 @@ task apply_reset;
         rst = 1;
         repeat(5) @(posedge clk);
         rst = 0;
-        repeat(2) @(posedge clk);
+        wait_for_reset_completion();
         $display("Reset complete.\n");
     end
 endtask
@@ -172,12 +200,12 @@ initial begin
     rst = 1;
     repeat(5) @(posedge clk);
     rst = 0;
-    repeat(2) @(posedge clk);
+    wait_for_reset_completion();
     $display("Reset complete.\n");
 
     $display("TEST 2: Reading to check reset cleared framebuffer...");
     read_pixel_byte_horizontal(0, 0, read_data);
-    $display("Read from (0, 0): 0x%02h (expected: 0x%02h)", read_data, 8'b11111111);
+    $display("Read from (0, 0): 0x%02h (expected: 0x%02h)", read_data, 8'b00000000);
     
     // Test 3: Write aligned data (xpos % 8 == 0)
     $display("TEST 3: Testing aligned writes...");
