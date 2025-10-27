@@ -1,6 +1,6 @@
-
 //TODO: Can prevent out of bounds writes by clamping w_xpos and w_ypos in an always block!
 // TODO: need to not write while reading, because unaligned writes use the read port to read existing data first
+// TODO: adjust other read modes to handle two clock delay on RAM access
 `default_nettype none
 
 module framebuffer_monochrome
@@ -74,34 +74,12 @@ reg [7:0] col_read_b7 = 0;
 // Local write registers
 reg w_aligned_pipeline_counter = 0; // Pipeline flag for aligned write
 reg [7:0] w_unaligned_pipeline_counter = 0; // Pipeline counter for unaligned write
-reg [7:0] w_left_byte = 0;
-reg [7:0] w_right_byte = 0;
-reg [7:0] w_left_mask = 0;
-reg [7:0] w_right_mask = 0;
+wire [7:0] w_left_byte = din << (w_xpos % 8);
+wire [7:0] w_right_byte = (w_xpos % 8 == 0) ? 8'h00 : (din >> (8 - (w_xpos % 8)));  // bits to write into right byte (lower part)
+wire [7:0] w_right_mask = 8'hFF << (w_xpos % 8);
+wire [7:0] w_left_mask = ~(8'hFF << (w_xpos % 8));
 reg [7:0] w_masked_left = 0;
 reg [7:0] w_masked_right = 0;
-
-
-// Combinational register logic ///////////////////////////
-// Write address calculation
-//assign w_addr = (w_ypos * (H_PIXELS / 8)) + (w_xpos / 8); 
-// always @(w_xpos or w_ypos) begin
-//     w_addr = (w_ypos * (H_PIXELS / 8)) + (w_xpos / 8);
-// end
-// Read address calculation
-// always @(r_xpos or r_ypos) begin
-//     r_addr = (r_ypos * (H_PIXELS / 8)) + (r_xpos / 8);
-// end
-// Write Mask Calculations for unaligned writes
-always @(w_xpos) begin
-    w_left_mask = 8'hFF << (w_xpos % 8);
-    w_right_mask = ~(8'hFF << (w_xpos % 8));
-end
-// Left and Right byte calculations for unaligned writes
-always @(din or w_xpos) begin
-    w_left_byte = din >> (w_xpos % 8);
-    w_right_byte = din << (8 - (w_xpos % 8));
-end
 
 
 // Main read/write logic ////////////////////////
@@ -119,10 +97,6 @@ always @(posedge clk) begin
         w_data_valid <= 0;
         r_left_byte <= 8'h00;
         r_right_byte <= 8'h00;
-        w_left_byte <= 8'h00;
-        w_right_byte <= 8'h00;
-        w_left_mask <= 8'h00;
-        w_right_mask <= 8'h00;
         w_masked_left <= 8'h00;
         w_masked_right <= 8'h00;
         r_aligned_pipeline_flag <= 0;
@@ -158,7 +132,9 @@ always @(posedge clk) begin
         end else begin // Not last address yet, increment address
             reset_addr <= reset_addr + 12'd1; // Increment by one (000000000001)
         end
+
     // //////////////// End reset handling //////////////////////
+
     end else begin // Normal operation (not reset)
         
         if(!re && !we) begin // Only not busy if not reading or writing
@@ -198,36 +174,55 @@ always @(posedge clk) begin
             ram_we <= 1'b0; // Ensure write is disabled during read
             if (r_mode == 1'b0) begin // Horizontal read mode ////////////////////////
                 if(r_xpos % 8 == 0) begin // Aligned read ////////////////////////////
-                    if(r_aligned_pipeline_flag == 0) begin
-                        ram_addr <= r_addr;
-                        r_aligned_pipeline_flag <= 1; // Wait one cycle for BRAM read
-                    end else begin
-                        dout <= ram_dout; // Output data from BRAM
-                        r_data_valid <= 1; // Indicate read data is valid
-                    end
-                end else begin // Unaligned read - assemble from two bytes (one if per clock cycle)
+                    case(r_aligned_pipeline_flag)
+                        0: begin // First cycle - Set read address
+                            ram_addr <= r_addr;
+                            r_aligned_pipeline_flag <= 1; // Wait two cycles for BRAM read
+                        end
+                        1: begin // Second cycle - Wait for BRAM
+                            r_aligned_pipeline_flag <= 2; // One more cycle...
+                        end
+                        default: begin // Third cycle - Output data
+                            dout <= ram_dout; // Output data from BRAM
+                            r_data_valid <= 1; // Indicate read data is valid
+                        end
+                    endcase
+                end else begin // Unaligned read pipeline - assemble from two bytes 
                     // Set the read address for the left byte
-                    if (r_unaligned_pipeline_counter == 0) begin
-                        ram_addr <= r_addr;
-                        r_unaligned_pipeline_counter <= 1; // Wait one cycle for left byte
-                    // Get the left byte and set read address for right byte
-                    end else if (r_unaligned_pipeline_counter == 1) begin
-                        r_left_byte <= ram_dout;
-                        ram_addr <= r_addr + 1;
-                        r_unaligned_pipeline_counter <= 2; // Wait one cycle for right byte
-                    // Get the right byte
-                    end else if (r_unaligned_pipeline_counter == 2) begin
-                        r_right_byte <= ram_dout;
-                        r_unaligned_pipeline_counter <= 3; 
-                    end else begin
-                        // Combine left and right bytes into output
-                        dout <= (r_left_byte << (r_xpos % 8)) | (r_right_byte >> (8 - (r_xpos % 8)));
-                        r_data_valid <= 1; // Indicate read data is valid
-                    end
+                    case (r_unaligned_pipeline_counter)
+                        0: begin // First cycle - Set read address for left byte
+                            ram_addr <= r_addr; // Set left byte address
+                            r_unaligned_pipeline_counter <= 1; // Wait two cycles for left byte
+                        end
+                        1: begin // Second cycle - Set read address for right byte
+                            ram_addr <= r_addr + 1; // Set right byte address (data will be ready in two more clocks)
+                            r_unaligned_pipeline_counter <= 2; // One more cycle... 
+                        end
+                        2: begin // Third cycle - Read left byte
+                            r_left_byte <= ram_dout;
+                            r_unaligned_pipeline_counter <= 3; // Wait one cycle for right byte
+                        end
+                        3: begin // Fourth cycle - Read right byte
+                            // Check if we rolled off the right edge of the screen or the bottom
+                            if(((r_addr + 1) % (H_PIXELS / 8) == 0) || (r_addr + 1) >= FRAMEBUFFER_DEPTH) begin
+                                r_right_byte <= 8'h00; // If so, return 0s for right byte
+                            end else begin
+                                r_right_byte <= ram_dout;
+                            end
+                            r_unaligned_pipeline_counter <= 4; 
+                        end
+                        default: begin // Fifth cycle - Combine and output
+                            // Combine left and right bytes into output
+                            dout <= (r_left_byte << (r_xpos % 8)) | (r_right_byte >> (8 - (r_xpos % 8)));
+                            r_data_valid <= 1; // Indicate read data is valid
+                        end
+                    endcase
                 end
                 ///////////////////////////////////////////////////////////////
             end else begin
                 //Column read mode
+
+                //TODO: Don't read past the end of the framebuffer!
                 // Pipeline reads one byte per clock cycle for 8 cycles
                 case (r_column_pipeline_counter)
                     0: begin // Set first read address
@@ -310,31 +305,39 @@ always @(posedge clk) begin
                 // Unaligned write - Pipeline to write two bytes
                 // Must first read the left and right bytes from RAM, then mask them before writing new values back
                 case (w_unaligned_pipeline_counter)
-                    0: begin // First cycle - Set read address for left byte
+                    0: begin // Zeroeth cycle - Set read address for left byte
                         ram_we <= 1'b0; // Ensure write is disabled during read
                         ram_addr <= w_addr;
                         w_unaligned_pipeline_counter <= 1;
                     end
-                    1: begin // Second cycle - Read the left byte, mask, and set read address for right byte
-                        w_masked_left <= (ram_dout & w_left_mask);
+                    1: begin // First cycle - Set read address for right byte
                         ram_addr <= w_addr + 1;
                         w_unaligned_pipeline_counter <= 2;
                     end
-                    2: begin // Third cycle - Read the right byte and mask it
-                        w_masked_right <= (ram_dout & w_right_mask);
+                    2: begin // Second cycle - Read the left byte and mask it
+                        w_masked_left <= (ram_dout & w_left_mask);
                         w_unaligned_pipeline_counter <= 3;
                     end
-                    3: begin // Fourth cycle - Write the combined left byte
+                    3: begin // Third cycle - Read the right byte and mask it
+                        w_masked_right <= (ram_dout & w_right_mask);
+                        w_unaligned_pipeline_counter <= 4;
+                    end
+                    4: begin // Fourth cycle - Write the combined left byte
                         ram_din <= w_masked_left | w_left_byte; // w_left_byte calculated combinationally above
                         ram_addr <= w_addr;
                         ram_we <= 1'b1; // Enable write
-                        w_unaligned_pipeline_counter <= 4;
+                        w_unaligned_pipeline_counter <= 5;
                     end
-                    4: begin // Fifth cycle - Write the combined right byte
+                    5: begin // Fifth cycle - Write the combined right byte
                         ram_din <= w_masked_right | w_right_byte; // w_right_byte calculated combinationally above
                         ram_addr <= w_addr + 1;
-                        ram_we <= 1'b1; // Enable write
-                        w_unaligned_pipeline_counter <= 5;
+                        // Check if we rolled off the right edge of the screen or the bottom
+                        if(((w_addr + 1) % (H_PIXELS / 8) == 0) || (w_addr + 1) >= FRAMEBUFFER_DEPTH) begin
+                            ram_we <= 1'b0; // If so, do not write the second byte
+                        end else begin
+                            ram_we <= 1'b1; // Enable write
+                        end
+                        w_unaligned_pipeline_counter <= 6;
                     end
                     default: begin // Sixth cycle - Finish write and report done
                         w_data_valid <= 1; // Indicate write data accepted

@@ -97,7 +97,7 @@ always @(posedge clk_pin) begin
             write_counter <= 0;
             write_in_progress <= 1;
             // Increment position
-            if(write_x >= 120) begin 
+            if(write_x >= 127) begin 
                 write_x <= 0;
                 if(write_y >= 63) begin
                     write_y <= 0;
@@ -106,7 +106,7 @@ always @(posedge clk_pin) begin
                     write_y <= write_y + 1;
                 end
             end else begin
-                write_x <= write_x + 8;
+                write_x <= write_x + 16;
             end
         end
     end
