@@ -1,3 +1,7 @@
+// Single Port BRAM Module
+// RAM dout will be ready two clock cycles after addr is set
+// Ex: addr => clk => clk => dout valid
+
 
 `default_nettype none
 module single_port_bram #(

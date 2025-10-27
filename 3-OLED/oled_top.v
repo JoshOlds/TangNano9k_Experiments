@@ -1,5 +1,6 @@
-`default_nettype none
 
+
+`default_nettype none
 module oled_top(
     input clk_pin, // FPGA clock input (assumes TangNano9k 27Mhz clock)
     input btn1_pin, // FPGA Button 1
@@ -11,20 +12,12 @@ module oled_top(
     output [5:0] led_pin
 );
 
+// Button signals
 reg button1_active_high = 0;
 assign button1_active_high = ~btn1_pin; // Invert button signal to be active high
 
-// Generate a slower clock for the OLED driver and framebuffer
-reg [15:0] clock_divider = 0;
-reg oled_clk = 0;
-always @(posedge clk_pin) begin
-    clock_divider <= clock_divider + 1;
-    oled_clk <= clock_divider[15]; // 411hz
-end
-
 // Framebuffer drive registers /////////////////////////////////////////
 wire fb_busy; // Framebuffer busy signal
-
 reg fb_we = 0; // Framebuffer write enable
 reg [7:0] fb_w_xpos = 0; // Framebuffer write x position
 reg [7:0] fb_w_ypos = 0; // Framebuffer write y position
@@ -75,10 +68,6 @@ ssd1309_driver oled_driver(
     .fb_re(fb_re)
 );
 
-initial begin
-    fb_we = 0;
-end
-
 // Framebuffer test registers
 reg [31:0] write_counter = 0; // Counter for 1 second delay (27Mhz clock)
 reg [7:0] write_x = 0; // Current write X position
@@ -88,8 +77,9 @@ reg write_in_progress = 1;
 assign led_pin[5] = ~write_in_progress; // Indicate when a write is in progress
 assign led_pin[4] = fb_busy; // Indicate when framebuffer is busy
 
-// Simple test pattern writer - writes a white pixel every second
-reg write_phase = 1'b0;
+// Simple test pattern writer 
+reg [7:0] write_phase = 0;
+reg rollover_invert = 1'b0;
 always @(posedge clk_pin) begin
     // Reset test counters on button press
     if(button1_active_high) begin
@@ -97,20 +87,21 @@ always @(posedge clk_pin) begin
         write_x <= 0;
         write_y <= 0;
         write_in_progress <= 1;
-        write_phase <= 1'b0;
+        write_phase <= 0;
         fb_we <= 0;
     end 
 
     if (!write_in_progress) begin
         write_counter <= write_counter + 1;
-        if(write_counter >= 2700000) begin // 1 second at 27Mhz
+        if(write_counter >= 27000) begin // 1 second at 27Mhz
             write_counter <= 0;
             write_in_progress <= 1;
             // Increment position
-            if(write_x >= 127) begin 
+            if(write_x >= 120) begin 
                 write_x <= 0;
                 if(write_y >= 63) begin
                     write_y <= 0;
+                    rollover_invert <= ~rollover_invert;
                 end else begin
                     write_y <= write_y + 1;
                 end
@@ -122,21 +113,28 @@ always @(posedge clk_pin) begin
 
     if(write_in_progress) begin
         case (write_phase)
-            1'b0: begin
+            0: begin
                 if (!fb_busy) begin
-                    fb_we <= 1;
                     fb_w_xpos <= write_x;
                     fb_w_ypos <= write_y;
-                    fb_din <= 8'hFF;
-                    write_phase <= 1'b1;
+                    fb_we <= 1;// Wait one cycle for xpos and ypos to propagate
+                    if(rollover_invert) begin
+                        fb_din <= 8'h00;
+                    end else begin
+                        fb_din <= 8'hFF;
+                    end
+                    write_phase <= 1;
                 end
             end
-            1'b1: begin
+            1: begin
                 if (fb_w_data_valid) begin
                     fb_we <= 0;
                     write_in_progress <= 0;
                     write_phase <= 0;
-                end
+                end   
+            end
+            default: begin
+                write_phase <= 0;
             end
         endcase
     end else begin

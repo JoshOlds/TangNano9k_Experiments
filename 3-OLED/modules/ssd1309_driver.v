@@ -3,6 +3,8 @@
 // TODO: test reading from framebuffer module - update the draw_framebuffer state to read from the framebuffer module instead of internal memory
 // TODO: Can we make a framebuffer test bench?
 // TODO: Clear screen should reset the framebuffer
+//TODO: don't think we need to wait for xpos and ypos to propagate, since they are regs assigned in same always block
+
 
 module ssd1309_driver(
     input clk, // Module input clock. Assumes 27Mhz. SPI data will clock out at half this frequency
@@ -43,7 +45,7 @@ end
 parameter DISPLAY_WIDTH = 128;
 parameter DISPLAY_HEIGHT = 64;
 parameter STARTUP_DELAY = 10000000; // Delay to use after power has been applied before resetting the display (~1/3 second at 27Mhz) 
-parameter FRAME_RATE = 100; // Target frame rate for refreshing the display
+parameter FRAME_RATE = 1000; // Target frame rate for refreshing the display
 parameter FRAME_RATE_DELAY = 27000000 / FRAME_RATE; // Delay time between frames (27mhz clock)
 
 // OLED Command Bytes
@@ -206,6 +208,37 @@ always @(posedge clk) begin
 
         // DRAW_FRAMEBUFFER: Write the contents of the framebuffer to the display
         DRAW_FRAMEBUFFER: begin
+            // READ logic for reading from framebuffer
+            if(!ready_to_increment) begin
+                case (read_pipeline_counter)
+                    0: begin
+                        // Start the read process
+                        read_pipeline_counter <= 1;
+                        fb_r_mode <= 1; // COLUMN read mode
+                        fb_r_xpos <= draw_column;
+                        fb_r_ypos <= draw_page * 8;
+                        fb_re <= 1; // Enable read
+                    end
+                    1: begin
+                        // wait until data is valid
+                        if(fb_data_valid) begin
+                            // Data is now valid, capture it and prepare to write
+                            write_byte <= fb_dout;
+                            fb_re <= 0; // Disable read (which will clear fb_data_valid)
+                            // Transition to WRITE state to send the data byte
+                            cmd <= 1; // Data mode
+                            return_state <= DRAW_FRAMEBUFFER;
+                            operation_state <= WRITE;
+                            ready_to_increment <= 1; // Set flag to increment after writing
+                            read_pipeline_counter <= 0; // Reset pipeline counter for next read
+                        end
+                    end
+                    default: begin
+                        read_pipeline_counter <= 0;
+                    end
+                endcase
+            end
+
             // Increment col/page address after writing (happens after below READ logic)
             if (ready_to_increment) begin
                 ready_to_increment <= 0;
@@ -225,41 +258,6 @@ always @(posedge clk) begin
                     // Not at the end of the row, increment column
                     draw_column <= draw_column + 1;
                 end
-            end
-
-            // READ logic for reading from framebuffer
-            if(!frame_complete) begin
-                case (read_pipeline_counter)
-                    0: begin
-                        // Start the read process
-                        read_pipeline_counter <= 1;
-                        fb_r_mode <= 1; // COLUMN read mode
-                        fb_r_xpos <= draw_column;
-                        fb_r_ypos <= draw_page * 8;
-                    end
-                    1: begin
-                        // Delay the enable of read to allow for xpos and ypos to propagate
-                        read_pipeline_counter <= 2;
-                        fb_re <= 1; // Enable read
-                    end
-                    2: begin
-                        // wait until data is valid
-                        if(fb_data_valid) begin
-                            // Data is now valid, capture it and prepare to write
-                            write_byte <= fb_dout;
-                            fb_re <= 0; // Disable read (which will clear fb_data_valid)
-                            // Transition to WRITE state to send the data byte
-                            cmd <= 1; // Data mode
-                            return_state <= DRAW_FRAMEBUFFER;
-                            operation_state <= WRITE;
-                            ready_to_increment <= 1; // Set flag to increment after writing
-                            read_pipeline_counter <= 0; // Reset pipeline counter for next read
-                        end
-                    end
-                    default: begin
-                        read_pipeline_counter <= 0;
-                    end
-                endcase
             end
         end
 

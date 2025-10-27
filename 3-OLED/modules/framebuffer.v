@@ -235,53 +235,58 @@ always @(posedge clk) begin
                         r_column_pipeline_counter <= 1;
                     end
                     1: begin // Get first byte
-                        col_read_b0 <= ram_dout;
+                        //col_read_b0 <= ram_dout;
                         ram_addr <= r_addr + (H_PIXELS / 8);
                         r_column_pipeline_counter <= 2;
                     end
                     2: begin // Get second byte
-                        col_read_b1 <= ram_dout;
+                        col_read_b0 <= ram_dout;
                         ram_addr <= r_addr + 2*(H_PIXELS / 8);
                         r_column_pipeline_counter <= 3;
                     end
                     3: begin // Get third byte
-                        col_read_b2 <= ram_dout;
+                        col_read_b1 <= ram_dout;
                         ram_addr <= r_addr + 3*(H_PIXELS / 8);
                         r_column_pipeline_counter <= 4;
                     end
                     4: begin // Get fourth byte
-                        col_read_b3 <= ram_dout;
+                        col_read_b2 <= ram_dout;
                         ram_addr <= r_addr + 4*(H_PIXELS / 8);
                         r_column_pipeline_counter <= 5;
                     end
                     5: begin // Get fifth byte
-                        col_read_b4 <= ram_dout;
+                        col_read_b3 <= ram_dout;
                         ram_addr <= r_addr + 5*(H_PIXELS / 8);
                         r_column_pipeline_counter <= 6;
                     end
                     6: begin // Get sixth byte
-                        col_read_b5 <= ram_dout;
+                        col_read_b4 <= ram_dout;
                         ram_addr <= r_addr + 6*(H_PIXELS / 8);
                         r_column_pipeline_counter <= 7;
                     end
                     7: begin // Get seventh byte
-                        col_read_b6 <= ram_dout;
+                        col_read_b5 <= ram_dout;
                         ram_addr <= r_addr + 7*(H_PIXELS / 8);
                         r_column_pipeline_counter <= 8;
                     end
                     8: begin // Get eighth byte
-                        col_read_b7 <= ram_dout;
+                        col_read_b6 <= ram_dout;
                         r_column_pipeline_counter <= 9;
                     end
+                    9: begin // Get ninth byte
+                        col_read_b7 <= ram_dout;
+                        r_column_pipeline_counter <= 10;
+                    end
                     default: begin // Assemble output byte
-                        dout <= (col_read_b0 << (r_xpos % 8)) & 8'b10000000 |
-                                ((col_read_b1 << (r_xpos % 8)) & 8'b10000000) >> 1 |
-                                ((col_read_b2 << (r_xpos % 8)) & 8'b10000000) >> 2 |
-                                ((col_read_b3 << (r_xpos % 8)) & 8'b10000000) >> 3 |
-                                ((col_read_b4 << (r_xpos % 8)) & 8'b10000000) >> 4 |
-                                ((col_read_b5 << (r_xpos % 8)) & 8'b10000000) >> 5 |
-                                ((col_read_b6 << (r_xpos % 8)) & 8'b10000000) >> 6 |
-                                ((col_read_b7 << (r_xpos % 8)) & 8'b10000000) >> 7 ;
+                    // Column read byte is returned LSB first
+                        dout <= (col_read_b7 << (r_xpos % 8)) & 8'b10000000 |
+                                ((col_read_b6 << (r_xpos % 8)) & 8'b10000000) >> 1 |
+                                ((col_read_b5 << (r_xpos % 8)) & 8'b10000000) >> 2 |
+                                ((col_read_b4 << (r_xpos % 8)) & 8'b10000000) >> 3 |
+                                ((col_read_b3 << (r_xpos % 8)) & 8'b10000000) >> 4 |
+                                ((col_read_b2 << (r_xpos % 8)) & 8'b10000000) >> 5 |
+                                ((col_read_b1 << (r_xpos % 8)) & 8'b10000000) >> 6 |
+                                ((col_read_b0 << (r_xpos % 8)) & 8'b10000000) >> 7 ;
                         r_data_valid <= 1; // Indicate read data is valid
                     end
                 endcase // End column read mode
