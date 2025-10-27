@@ -89,6 +89,7 @@ always @(posedge clk_pin) begin
         write_in_progress <= 1;
         write_phase <= 0;
         fb_we <= 0;
+        rollover_invert <= 1'b0;
     end 
 
     if (!write_in_progress) begin
@@ -106,7 +107,7 @@ always @(posedge clk_pin) begin
                     write_y <= write_y + 1;
                 end
             end else begin
-                write_x <= write_x + 16;
+                write_x <= write_x + 1;
             end
         end
     end
@@ -117,7 +118,7 @@ always @(posedge clk_pin) begin
                 if (!fb_busy) begin
                     fb_w_xpos <= write_x;
                     fb_w_ypos <= write_y;
-                    fb_we <= 1;// Wait one cycle for xpos and ypos to propagate
+                    fb_we <= 1;
                     if(rollover_invert) begin
                         fb_din <= 8'h00;
                     end else begin

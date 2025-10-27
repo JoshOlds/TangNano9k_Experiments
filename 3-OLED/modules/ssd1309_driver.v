@@ -1,11 +1,5 @@
 `default_nettype none
 
-// TODO: test reading from framebuffer module - update the draw_framebuffer state to read from the framebuffer module instead of internal memory
-// TODO: Can we make a framebuffer test bench?
-// TODO: Clear screen should reset the framebuffer
-//TODO: don't think we need to wait for xpos and ypos to propagate, since they are regs assigned in same always block
-
-
 module ssd1309_driver(
     input clk, // Module input clock. Assumes 27Mhz. SPI data will clock out at half this frequency
     input reset, // Active high - resets state machine and reinitializes the module
@@ -15,6 +9,8 @@ module ssd1309_driver(
     output reg cmd, // OLED command pin - Command == LOW, pixel data == HIGH
     output reg cs, // OLED chip select pin - pull low to communicate with module
     output reg [3:0] led_pin_o, // For debugging - shows current state of operation state machine
+    output reg is_drawing, // Output high while a frame is being drawn to the display
+    input vsync, // Vertical sync input - will wait to draw next frame until vsync is high
 
     // Framebuffer interface
     input [7:0] fb_dout, // Framebuffer read data output (8 pixels, 1 bit each)
@@ -34,6 +30,7 @@ initial begin
     res <= 1;
     cmd <= 0;
     cs <= 1;
+    is_drawing <= 0;
 
     // Framebuffer interface
     fb_r_xpos <= 0;
@@ -44,7 +41,7 @@ end
 
 parameter DISPLAY_WIDTH = 128;
 parameter DISPLAY_HEIGHT = 64;
-parameter STARTUP_DELAY = 10000000; // Delay to use after power has been applied before resetting the display (~1/3 second at 27Mhz) 
+parameter STARTUP_DELAY = 100000; // Delay to use after power has been applied before resetting the display (~1/3 second at 27Mhz) 
 parameter FRAME_RATE = 1000; // Target frame rate for refreshing the display
 parameter FRAME_RATE_DELAY = 27000000 / FRAME_RATE; // Delay time between frames (27mhz clock)
 
@@ -69,7 +66,7 @@ localparam STARTUP_PRE_RESET = 0;
 localparam STARTUP_RESETTING = 1;
 localparam STARTUP_POST_RESET = 2;
 localparam INITIALIZING = 3;
-localparam CLEAR_SCREEN = 4;
+localparam WAIT_FOR_FRAMEBUFFER_READY = 4;
 localparam DRAW_FRAMEBUFFER = 5;
 localparam WRITE = 6; 
 localparam WAITING_FOR_FRAMERATE = 7; // New state for frame rate delay
@@ -124,6 +121,7 @@ always @(posedge clk) begin
         ready_to_increment <= 0;
         read_pipeline_counter <= 0;
         fb_re <= 0;
+        is_drawing <= 0;
     end
 
 
@@ -170,7 +168,7 @@ always @(posedge clk) begin
                 2: begin write_byte <= HORIZONTAL_ADDR_MODE; end
                 3: begin write_byte <= CONTRAST; end
                 4: begin write_byte <= 8'h7F; end // Contrast level
-                5: begin write_byte <= DISPLAY_MODE_ACTIVE_LOW; end
+                5: begin write_byte <= DISPLAY_MODE_ACTIVE_HIGH; end
                 6: begin write_byte <= ENTIRE_DISPLAY_RAM; end
                 7: begin write_byte <= CHARGE_PUMP_CONFIG; end
                 8: begin write_byte <= ENABLE_CHARGE_PUMP; end
@@ -185,25 +183,16 @@ always @(posedge clk) begin
                 initialization_command_index <= initialization_command_index + 1; // Move to next command
             end
             else begin
-                operation_state <= CLEAR_SCREEN; // All initialization commands sent, move to CLEAR_SCREEN state
+                operation_state <= WAIT_FOR_FRAMEBUFFER_READY; // All initialization commands sent, move to WAIT_FOR_FRAMEBUFFER_READY state
                 clear_counter <= 0;
             end
         end
 
-        // CLEAR_SCREEN: Clear the display by writing zeros to the entire framebuffer
-        CLEAR_SCREEN: begin
-            // if(clear_counter < DISPLAY_WIDTH * DISPLAY_HEIGHT / 8) begin
-            //     write_byte <= 8'h00; // Byte of zeros to clear the screen
-            //     cmd <= 1; // Data mode
-            //     return_state <= CLEAR_SCREEN; // After writing byte, return to CLEAR_SCREEN state
-            //     operation_state <= WRITE; // Go to WRITE state to send the byte
-            //     clear_counter <= clear_counter + 1; // Increment clear counter
-            // end
-            // else begin
-            //     clear_counter <= 0;
-            //     operation_state <= DRAW_FRAMEBUFFER;
-            // end
-            operation_state <= DRAW_FRAMEBUFFER;
+        // WAIT_FOR_FRAMEBUFFER_READY: Wait for the framebuffer to be ready before clearing the screen
+        WAIT_FOR_FRAMEBUFFER_READY: begin
+            if(!fb_busy) begin
+                operation_state <= DRAW_FRAMEBUFFER;
+            end
         end
 
         // DRAW_FRAMEBUFFER: Write the contents of the framebuffer to the display
