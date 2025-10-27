@@ -8,7 +8,7 @@ module oled_top(
     output reg oled_res_pin, // OLED reset pin
     output reg oled_dc_pin, // OLED command pin - Command == LOW, pixel data == HIGH
     output reg oled_cs_pin, // OLED chip select pin - pull low to communicate with module
-    output [4:0] led_pin
+    output [5:0] led_pin
 );
 
 reg button1_active_high = 0;
@@ -65,33 +65,45 @@ ssd1309_driver oled_driver(
     .res(oled_res_pin), 
     .cmd(oled_dc_pin), 
     .cs(oled_cs_pin), 
-    .led_pin_o(led_pin),
+    .led_pin_o(led_pin[3:0]),
     .fb_dout(fb_dout),
     .fb_data_valid(fb_r_data_valid),
+    .fb_busy(fb_busy),
     .fb_r_xpos(fb_r_xpos),
     .fb_r_ypos(fb_r_ypos),
     .fb_r_mode(fb_r_mode),
     .fb_re(fb_re)
 );
 
+initial begin
+    fb_we = 0;
+end
+
 // Framebuffer test registers
 reg [31:0] write_counter = 0; // Counter for 1 second delay (27Mhz clock)
 reg [7:0] write_x = 0; // Current write X position
 reg [7:0] write_y = 0; // Current write Y position
-reg write_in_progress = 0;
+reg write_in_progress = 1;
 
+assign led_pin[5] = ~write_in_progress; // Indicate when a write is in progress
+assign led_pin[4] = fb_busy; // Indicate when framebuffer is busy
+
+// Simple test pattern writer - writes a white pixel every second
+reg write_phase = 1'b0;
 always @(posedge clk_pin) begin
     // Reset test counters on button press
     if(button1_active_high) begin
         write_counter <= 0;
         write_x <= 0;
         write_y <= 0;
-        write_in_progress <= 0;
+        write_in_progress <= 1;
+        write_phase <= 1'b0;
+        fb_we <= 0;
     end 
 
     if (!write_in_progress) begin
         write_counter <= write_counter + 1;
-        if(write_counter >= 27000000) begin // 1 second at 27Mhz
+        if(write_counter >= 2700000) begin // 1 second at 27Mhz
             write_counter <= 0;
             write_in_progress <= 1;
             // Increment position
@@ -103,23 +115,33 @@ always @(posedge clk_pin) begin
                     write_y <= write_y + 1;
                 end
             end else begin
-                write_x <= write_x + 1;
+                write_x <= write_x + 8;
             end
         end
     end
 
     if(write_in_progress) begin
-        if (!fb_busy) begin // Wait until framebuffer is not busy
-            if (!fb_w_data_valid) begin
-                fb_we <= 1;
-                fb_w_xpos <= write_x;
-                fb_w_ypos <= write_y;
-                fb_din <= 8'hFF;
-            end else begin // Write complete
-                fb_we <= 0;
-                write_in_progress <= 0;
+        case (write_phase)
+            1'b0: begin
+                if (!fb_busy) begin
+                    fb_we <= 1;
+                    fb_w_xpos <= write_x;
+                    fb_w_ypos <= write_y;
+                    fb_din <= 8'hFF;
+                    write_phase <= 1'b1;
+                end
             end
-        end
+            1'b1: begin
+                if (fb_w_data_valid) begin
+                    fb_we <= 0;
+                    write_in_progress <= 0;
+                    write_phase <= 0;
+                end
+            end
+        endcase
+    end else begin
+        fb_we <= 0;
+        write_phase <= 0;
     end     
 end
 endmodule

@@ -12,18 +12,19 @@ module ssd1309_driver(
     output reg res, // OLED reset pin
     output reg cmd, // OLED command pin - Command == LOW, pixel data == HIGH
     output reg cs, // OLED chip select pin - pull low to communicate with module
-    output reg [4:0] led_pin_o, // For debugging - shows current state of operation state machine
+    output reg [3:0] led_pin_o, // For debugging - shows current state of operation state machine
 
     // Framebuffer interface
-    input fb_dout, // Framebuffer read data output (8 pixels, 1 bit each)
+    input [7:0] fb_dout, // Framebuffer read data output (8 pixels, 1 bit each)
     input fb_data_valid, // Framebuffer read data valid signal
+    input fb_busy, // Framebuffer busy signal
     output reg [7:0] fb_r_xpos, // Framebuffer read x position
     output reg [7:0] fb_r_ypos, // Framebuffer read y position
     output reg fb_r_mode, // Framebuffer read mode (0: horizontal read, 1: column read)
     output reg fb_re // Framebuffer read enable (active high)
 );
 
-assign led_pin_o = operation_state[4:0]; // Output current operation state for debugging
+assign led_pin_o = ~operation_state[3:0]; // Output current operation state for debugging
 
 initial begin
     sclk <= 0;
@@ -70,12 +71,7 @@ localparam CLEAR_SCREEN = 4;
 localparam DRAW_FRAMEBUFFER = 5;
 localparam WRITE = 6; 
 localparam WAITING_FOR_FRAMERATE = 7; // New state for frame rate delay
-localparam IDLE = 8; // Shifted IDLE to 8
-
-
-// initial begin
-//     $readmemb("examples/horse_oled_128x64.bin", framebuffer);
-// end
+localparam IDLE = 8; 
 
 
 // Operation State Machine registers
@@ -86,6 +82,9 @@ reg [27:0] startup_delay_counter = 0; // 28 bits to count to 10,000,000 for star
 reg [4:0] initialization_command_index = 0; // Index of the next initialization command to send
 // Clear screen state registers
 reg [11:0] clear_counter = 0; // Counter used to clear the screen
+
+//Read pipeline registers
+reg [7:0] read_pipeline_counter = 0; // Counter used to pipeline read from framebuffer
 // Write state registers
 reg [7:0] write_byte = 0; // Byte to send to OLED (either command or data)
 reg [3:0] write_byte_bit_counter = 0; // Counts bits of the write_byte that have been sent
@@ -121,6 +120,8 @@ always @(posedge clk) begin
         frame_complete <= 0;
         waiting_for_data <= 0;
         ready_to_increment <= 0;
+        read_pipeline_counter <= 0;
+        fb_re <= 0;
     end
 
 
@@ -167,7 +168,7 @@ always @(posedge clk) begin
                 2: begin write_byte <= HORIZONTAL_ADDR_MODE; end
                 3: begin write_byte <= CONTRAST; end
                 4: begin write_byte <= 8'h7F; end // Contrast level
-                5: begin write_byte <= DISPLAY_MODE_ACTIVE_HIGH; end
+                5: begin write_byte <= DISPLAY_MODE_ACTIVE_LOW; end
                 6: begin write_byte <= ENTIRE_DISPLAY_RAM; end
                 7: begin write_byte <= CHARGE_PUMP_CONFIG; end
                 8: begin write_byte <= ENABLE_CHARGE_PUMP; end
@@ -214,6 +215,7 @@ always @(posedge clk) begin
                         // All pages complete
                         operation_state <= WAITING_FOR_FRAMERATE;
                         frame_complete <= 1;
+                        fb_re <= 0;
                     end else begin
                         // Reached the end of the row, move to next page
                         draw_column <= 0;
@@ -227,22 +229,37 @@ always @(posedge clk) begin
 
             // READ logic for reading from framebuffer
             if(!frame_complete) begin
-                if (!fb_data_valid) begin
-                    // Initiate framebuffer read - stay here until data is valid
-                    fb_r_mode <= 1; // COLUMN read mode
-                    fb_r_xpos <= draw_column;
-                    fb_r_ypos <= draw_page * 8;
-                    fb_re <= 1; // Enable read
-                end else begin
-                    // Data is now valid, capture it and prepare to write
-                    write_byte <= fb_dout;
-                    fb_re <= 0; // Disable read (which will clear fb_data_valid)
-                    // Transition to WRITE state to send the data byte
-                    cmd <= 1; // Data mode
-                    return_state <= DRAW_FRAMEBUFFER;
-                    operation_state <= WRITE;
-                    ready_to_increment <= 1; // Set flag to increment after writing
-                end
+                case (read_pipeline_counter)
+                    0: begin
+                        // Start the read process
+                        read_pipeline_counter <= 1;
+                        fb_r_mode <= 1; // COLUMN read mode
+                        fb_r_xpos <= draw_column;
+                        fb_r_ypos <= draw_page * 8;
+                    end
+                    1: begin
+                        // Delay the enable of read to allow for xpos and ypos to propagate
+                        read_pipeline_counter <= 2;
+                        fb_re <= 1; // Enable read
+                    end
+                    2: begin
+                        // wait until data is valid
+                        if(fb_data_valid) begin
+                            // Data is now valid, capture it and prepare to write
+                            write_byte <= fb_dout;
+                            fb_re <= 0; // Disable read (which will clear fb_data_valid)
+                            // Transition to WRITE state to send the data byte
+                            cmd <= 1; // Data mode
+                            return_state <= DRAW_FRAMEBUFFER;
+                            operation_state <= WRITE;
+                            ready_to_increment <= 1; // Set flag to increment after writing
+                            read_pipeline_counter <= 0; // Reset pipeline counter for next read
+                        end
+                    end
+                    default: begin
+                        read_pipeline_counter <= 0;
+                    end
+                endcase
             end
         end
 

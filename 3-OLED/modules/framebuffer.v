@@ -154,6 +154,7 @@ always @(posedge clk) begin
             rst_complete <= 1'b1;
             ram_we <= 1'b0;
             ram_addr <= 12'h000;
+            busy <= 1'b0;
         end else begin // Not last address yet, increment address
             reset_addr <= reset_addr + 12'd1; // Increment by one (000000000001)
         end
