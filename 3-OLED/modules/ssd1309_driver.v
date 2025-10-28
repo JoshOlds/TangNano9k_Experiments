@@ -188,7 +188,7 @@ always @(posedge clk) begin
             end
         end
 
-        // WAIT_FOR_FRAMEBUFFER_READY: Wait for the framebuffer to be ready before clearing the screen
+        // WAIT_FOR_FRAMEBUFFER_READY: Wait for the framebuffer to be ready before moving on to operation
         WAIT_FOR_FRAMEBUFFER_READY: begin
             if(!fb_busy) begin
                 operation_state <= DRAW_FRAMEBUFFER;
@@ -201,12 +201,14 @@ always @(posedge clk) begin
             if(!ready_to_increment) begin
                 case (read_pipeline_counter)
                     0: begin
-                        // Start the read process
-                        read_pipeline_counter <= 1;
-                        fb_r_mode <= 1; // COLUMN read mode
-                        fb_r_xpos <= draw_column;
-                        fb_r_ypos <= draw_page * 8;
-                        fb_re <= 1; // Enable read
+                        // Start the read process if fb not busy
+                        if(!fb_busy) begin
+                            read_pipeline_counter <= 1;
+                            fb_r_mode <= 1; // COLUMN read mode
+                            fb_r_xpos <= draw_column;
+                            fb_r_ypos <= draw_page * 8;
+                            fb_re <= 1; // Enable read
+                        end
                     end
                     1: begin
                         // wait until data is valid
